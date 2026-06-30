@@ -200,6 +200,21 @@ model InventoryItem {
   createdAt       DateTime          @default(now())
 }
 
+// ---------- Commodity prices (Phase 2 mark-to-market) ----------
+// Global quote store; latest row per symbol wins. A live USDA/CME provider can
+// upsert here behind a flag — for now quotes are seeded/manual. Per-item manual
+// overrides live on InventoryItem.unitValueCents.
+model CommodityPrice {
+  id         String   @id @default(uuid())
+  symbol     String   // e.g. LE=F (live cattle), ZW=F (wheat)
+  label      String?
+  unit       String   // display unit the price is quoted in (head, bushel)
+  priceCents BigInt   // price per inventory unit
+  source     String   @default("manual") // usda | cme | manual
+  asOf       DateTime @default(now())
+  @@index([symbol, asOf])
+}
+
 // ---------- Liabilities ----------
 enum LiabilityType {
   EQUIPMENT_LOAN

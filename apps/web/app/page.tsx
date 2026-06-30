@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { CashFlowChart, type CashFlowDatum } from "@/components/charts/cash-flow-chart";
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
+import { getValuedInventory, inventoryTotals } from "@/lib/valuation";
 import { sumCents } from "@fl/core";
 import { fmtDate } from "@/lib/format";
 import { TrendingUp, TrendingDown, DollarSign, Wallet, CreditCard, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
@@ -15,9 +16,9 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
 
 export default async function Dashboard() {
   const farmId = await getDemoFarmId();
-  const [txns, inventory, liabilities, budgets, accounts] = await Promise.all([
+  const [txns, valued, liabilities, budgets, accounts] = await Promise.all([
     prisma.transaction.findMany({ where: { farmId }, orderBy: { date: "desc" }, include: { account: true } }),
-    prisma.inventoryItem.findMany({ where: { farmId } }),
+    getValuedInventory(farmId),
     prisma.liability.findMany({ where: { farmId } }),
     prisma.budget.findMany({ where: { farmId } }),
     prisma.account.findMany({ where: { farmId } }),
@@ -26,7 +27,7 @@ export default async function Dashboard() {
   const income = sumCents(txns.filter((t) => t.amountCents > 0n).map((t) => t.amountCents));
   const expenses = sumCents(txns.filter((t) => t.amountCents < 0n).map((t) => -t.amountCents));
   const netProfit = income - expenses;
-  const inventoryValue = sumCents(inventory.map((i) => i.estValueCents ?? 0n));
+  const inventoryValue = inventoryTotals(valued).assets; // mark-to-market + depreciation
   const totalLiabilities = sumCents(liabilities.map((l) => l.balanceCents));
   const netWorth = inventoryValue - totalLiabilities;
 
@@ -50,7 +51,7 @@ export default async function Dashboard() {
         <StatCard label="Total Income" value={<Money cents={income} />} icon={<TrendingUp className="text-positive" size={18} />} />
         <StatCard label="Total Expenses" value={<Money cents={expenses} />} icon={<TrendingDown className="text-negative" size={18} />} />
         <StatCard label="Net Profit" value={<Money cents={netProfit} />} icon={<DollarSign className="text-positive" size={18} />} />
-        <StatCard label="Total Inventory Value" value={<Money cents={inventoryValue} />} sub={`Across ${inventory.length} active lots/items`} variant="primary" icon={<Wallet className="text-white/80" size={18} />} />
+        <StatCard label="Total Inventory Value" value={<Money cents={inventoryValue} />} sub={`Across ${valued.length} active lots/items`} variant="primary" icon={<Wallet className="text-white/80" size={18} />} />
       </div>
       <div className="grid grid-cols-4 gap-5 mt-5">
         <StatCard label="Total Liabilities" value={<Money cents={totalLiabilities} />} icon={<CreditCard className="text-negative" size={18} />} />

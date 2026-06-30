@@ -20,10 +20,10 @@ export function InsightsProjectionChart({ data }: { data: ProjectionDatum[] }) {
           contentStyle={{ borderRadius: 10, border: "1px solid var(--border)", fontSize: 12 }}
         />
         <Legend iconType="square" wrapperStyle={{ fontSize: 12 }} />
-        <Bar dataKey="income" name="Income" fill="var(--primary)" radius={[3, 3, 0, 0]} maxBarSize={26}>
+        <Bar dataKey="income" name="Income" fill="var(--primary)" radius={[3, 3, 0, 0]} maxBarSize={26} isAnimationActive={false}>
           {data.map((d, i) => <Cell key={i} fillOpacity={d.projected ? 0.45 : 1} />)}
         </Bar>
-        <Bar dataKey="expenses" name="Expenses" fill="#D8A6A0" radius={[3, 3, 0, 0]} maxBarSize={26}>
+        <Bar dataKey="expenses" name="Expenses" fill="#D8A6A0" radius={[3, 3, 0, 0]} maxBarSize={26} isAnimationActive={false}>
           {data.map((d, i) => <Cell key={i} fillOpacity={d.projected ? 0.5 : 1} />)}
         </Bar>
       </BarChart>

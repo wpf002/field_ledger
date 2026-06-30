@@ -14,6 +14,7 @@ import { registerTransactions } from "./routes/transactions.js";
 import { registerFarm } from "./routes/farm.js";
 import { registerImport } from "./routes/import.js";
 import { registerReconcile } from "./routes/reconcile.js";
+import { registerValuation } from "./routes/valuation.js";
 import { bigintReplySerializer } from "./plugins/bigint-serializer.js";
 
 // 25 MB body limit so multi-year CSV/OFX statements parse without truncation.
@@ -31,6 +32,7 @@ await registerFarm(app);
 await registerTransactions(app);
 await registerImport(app);
 await registerReconcile(app);
+await registerValuation(app);
 
 const port = Number(process.env.API_PORT ?? 4000);
 const host = process.env.API_HOST ?? "0.0.0.0";

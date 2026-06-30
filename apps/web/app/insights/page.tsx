@@ -4,7 +4,8 @@ import { Money } from "@/components/ui/money";
 import { InsightsProjectionChart, type ProjectionDatum } from "@/components/charts/insights-projection-chart";
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
-import { sumCents, formatCentsDisplay } from "@fl/core";
+import { getValuedInventory, inventoryTotals } from "@/lib/valuation";
+import { sumCents, formatCentsDisplay, naiveForecaster, type MonthFlow } from "@fl/core";
 import { CalendarRange, CircleCheck, TriangleAlert } from "lucide-react";
 
 const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
@@ -14,16 +15,16 @@ const PROJ = ["Jul", "Aug", "Sep"];
 
 export default async function InsightsPage() {
   const farmId = await getDemoFarmId();
-  const [inventory, liabilities, leases, txns] = await Promise.all([
-    prisma.inventoryItem.findMany({ where: { farmId } }),
+  const [valued, liabilities, leases, txns] = await Promise.all([
+    getValuedInventory(farmId),
     prisma.liability.findMany({ where: { farmId } }),
     prisma.lease.findMany({ where: { farmId } }),
     prisma.transaction.findMany({ where: { farmId } }),
   ]);
 
-  // Marketable inventory = livestock + crops, valued at current per-unit price.
-  const marketable = inventory.filter((i) => i.category === "LIVESTOCK" || i.category === "CROPS");
-  const marketableValue = sumCents(marketable.map((i) => i.estValueCents ?? 0n));
+  // Marketable inventory = livestock + crops, valued at the latest market quote.
+  const marketable = valued.filter((v) => v.valuation.marketable);
+  const marketableValue = inventoryTotals(valued).marketable;
 
   // Upcoming obligations (next 90 days). All integer cents — no float artifacts.
   const horizon = new Date("2026-06-30");
@@ -41,23 +42,20 @@ export default async function InsightsPage() {
   const projectedIncome = marketableValue; // assumes marketable inventory sells within the window
   const netPosition = projectedIncome - projectedExpenses;
 
-  // Chart: actual months from the ledger, then 3 projected months (lighter).
-  const chart: ProjectionDatum[] = [
-    ...HIST.map((month, i) => {
-      const m = txns.filter((t) => t.date.getFullYear() === 2026 && t.date.getMonth() === i);
-      return {
-        month,
-        income: Number(sumCents(m.filter((t) => t.amountCents > 0n).map((t) => t.amountCents))) / 100,
-        expenses: Number(sumCents(m.filter((t) => t.amountCents < 0n).map((t) => -t.amountCents))) / 100,
-        projected: false,
-      };
-    }),
-    ...PROJ.map((month) => ({
+  // Chart: actual months from the ledger, then projected months via the
+  // Forecaster seam (naive baseline now; Prophet drops in with the same API).
+  const history: MonthFlow[] = HIST.map((month, i) => {
+    const m = txns.filter((t) => t.date.getFullYear() === 2026 && t.date.getMonth() === i);
+    return {
       month,
-      income: Number(projectedIncome / 3n) / 100,
-      expenses: Number(projectedExpenses / 3n) / 100,
-      projected: true,
-    })),
+      incomeCents: sumCents(m.filter((t) => t.amountCents > 0n).map((t) => t.amountCents)),
+      expenseCents: sumCents(m.filter((t) => t.amountCents < 0n).map((t) => -t.amountCents)),
+    };
+  });
+  const projected = naiveForecaster.project(history, PROJ, projectedIncome, projectedExpenses);
+  const chart: ProjectionDatum[] = [
+    ...history.map((h) => ({ month: h.month, income: Number(h.incomeCents) / 100, expenses: Number(h.expenseCents) / 100, projected: false })),
+    ...projected.map((p) => ({ month: p.month, income: Number(p.incomeCents) / 100, expenses: Number(p.expenseCents) / 100, projected: true })),
   ];
 
   return (
@@ -92,15 +90,15 @@ export default async function InsightsPage() {
             action={<span className="rounded-pill bg-mint px-3 py-1 text-sm font-medium text-positive"><Money cents={marketableValue} /></span>}
           />
           <div className="mt-4 space-y-4">
-            {marketable.map((i) => (
-              <div key={i.id} className="flex items-center justify-between">
+            {marketable.map(({ item, valuation }) => (
+              <div key={item.id} className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-ink">{i.name}</p>
-                  <p className="text-xs text-muted">{Number(i.quantity).toLocaleString()} {titleCase(i.unit)} · {titleCase(i.category)}</p>
+                  <p className="font-medium text-ink">{item.name}</p>
+                  <p className="text-xs text-muted">{Number(item.quantity).toLocaleString()} {titleCase(item.unit)} · {titleCase(item.category)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-serif font-bold text-ink"><Money cents={i.estValueCents ?? 0n} /></p>
-                  <p className="text-xs text-muted">{formatCentsDisplay(i.unitValueCents ?? 0n)}/{singular(i.unit)}</p>
+                  <p className="font-serif font-bold text-ink"><Money cents={valuation.valueCents} /></p>
+                  <p className="text-xs text-muted">{formatCentsDisplay(valuation.unitPriceCents ?? 0n)}/{singular(item.unit)}</p>
                 </div>
               </div>
             ))}

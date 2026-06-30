@@ -68,8 +68,22 @@ Prisma directly in server components.
 - Money was integer cents from day one, so there is no float data to migrate —
   Invariant 1 already holds and derived totals reconcile.
 
-`packages/core` money + import logic is unit-tested (15 tests); `pnpm -r
-typecheck` is clean across all packages.
+**Phase 2 — complete.** Asset accuracy + mark-to-market:
+- **Mark-to-market valuation**: marketable inventory values off a `CommodityPrice`
+  store (seeded USDA quotes; `POST /commodity-prices` accepts live-feed upserts)
+  with per-item **manual override** (`PATCH .../inventory/:id`, audited). Source
+  badges (USDA / manual) show on each card.
+- **Depreciation**: equipment values at straight-line **book value** (the John
+  Deere: $150k cost − accumulated → ~$90k book), flowing into Total Inventory
+  Value and Net Worth. Valuation-detail modal shows the full schedule.
+- **Cost basis**: raised livestock/crops carry $0 tax basis; purchased assets
+  carry their cost.
+- Dashboard, Insights, and Inventory now compute from this valuation, not static
+  `estValueCents`. The **Prophet forecasting seam** (`@fl/core` `Forecaster`) backs
+  the Insights projection — naive baseline now, Prophet drops in unchanged.
+
+`packages/core` money + import + valuation + forecast logic is unit-tested (24
+tests); `pnpm -r typecheck` is clean across all packages.
 
 ## Invariants (do not violate — full list in docs/BUILD-SPEC.md)
 1. Money is integer cents (BigInt). Format only at the display edge.

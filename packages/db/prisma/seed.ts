@@ -55,6 +55,7 @@ async function main() {
     await prisma.membership.deleteMany({ where: { farmId: id } });
     await prisma.farm.delete({ where: { id } });
   }
+  await prisma.commodityPrice.deleteMany({}); // global quote store
 
   const farm = await prisma.farm.create({ data: { name: "Field & Ledger Demo Farm" } });
 
@@ -78,34 +79,44 @@ async function main() {
   await prisma.accountingPeriod.create({ data: { farmId: farm.id, year: 2024, locked: true, lockedAt: new Date("2025-04-15") } });
   await prisma.accountingPeriod.create({ data: { farmId: farm.id, year: 2026, locked: false } });
 
+  // --- commodity prices (Phase 2 mark-to-market) ---
+  // Quotes the marketable inventory is valued at. Seeded at the screenshot
+  // prices so default values match; a live USDA/CME feed can upsert these later.
+  await prisma.commodityPrice.create({ data: { symbol: "LE=F", label: "Live Cattle", unit: "head", priceCents: 180000n, source: "usda", asOf: new Date("2026-06-15") } });
+  await prisma.commodityPrice.create({ data: { symbol: "ZW=F", label: "Wheat", unit: "bushel", priceCents: 1400n, source: "usda", asOf: new Date("2026-06-15") } });
+
   // --- inventory ---
+  // Marketable items carry a marketSymbol and NO override (unitValueCents null)
+  // so they value off the live quote. Raised livestock/crops have $0 tax basis.
   const angus = await prisma.inventoryItem.create({
     data: {
       farmId: farm.id, category: InventoryCategory.LIVESTOCK, name: "Angus Cattle",
       quantity: 45, unit: "head", location: "North Pasture",
-      unitValueCents: 180000n, estValueCents: 8100000n, marketSymbol: "LE=F", basisType: BasisType.RAISED,
+      marketSymbol: "LE=F", basisType: BasisType.RAISED, costBasisCents: 0n,
     },
   });
   await prisma.inventoryItem.create({
     data: {
       farmId: farm.id, category: InventoryCategory.FEED, name: "Hay Bales",
       quantity: 200, unit: "bales", location: "Feed Shed",
-      unitValueCents: 30000n, estValueCents: 6000000n,
+      unitValueCents: 30000n, // no commodity feed; valued at a manual per-bale price
     },
   });
   await prisma.inventoryItem.create({
     data: {
       farmId: farm.id, category: InventoryCategory.CROPS, name: "Winter Wheat",
       quantity: 5000, unit: "bushels", location: "Silo 1",
-      unitValueCents: 1400n, estValueCents: 7000000n, marketSymbol: "ZW=F",
+      marketSymbol: "ZW=F", basisType: BasisType.RAISED, costBasisCents: 0n,
     },
   });
+  // Equipment: valued at depreciated book value. $150k cost, $30k salvage,
+  // 10yr straight-line, bought mid-2021 -> ~5yr depreciation by 2026.
   await prisma.inventoryItem.create({
     data: {
       farmId: farm.id, category: InventoryCategory.EQUIPMENT, name: "John Deere 8R",
       quantity: 1, unit: "units", location: "Main Barn",
-      unitValueCents: 12000000n, estValueCents: 12000000n,
-      acquiredAt: new Date("2022-03-01"), usefulLifeYears: 10, salvageCents: 2000000n,
+      basisType: BasisType.PURCHASED, costBasisCents: 15000000n,
+      acquiredAt: new Date("2021-06-30"), usefulLifeYears: 10, salvageCents: 3000000n,
     },
   });
 

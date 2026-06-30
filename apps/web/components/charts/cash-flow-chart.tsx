@@ -19,8 +19,8 @@ export function CashFlowChart({ data }: { data: CashFlowDatum[] }) {
           formatter={(v: number, name) => [`$${v.toLocaleString()}`, name === "income" ? "Income" : "Expenses"]}
           contentStyle={{ borderRadius: 10, border: "1px solid var(--border)", fontSize: 12 }}
         />
-        <Bar dataKey="income" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={28} />
-        <Bar dataKey="expenses" fill="var(--text-muted)" radius={[4, 4, 0, 0]} maxBarSize={28} opacity={0.45} />
+        <Bar dataKey="income" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
+        <Bar dataKey="expenses" fill="var(--text-muted)" radius={[4, 4, 0, 0]} maxBarSize={28} opacity={0.45} isAnimationActive={false} />
       </BarChart>
     </ResponsiveContainer>
   );
