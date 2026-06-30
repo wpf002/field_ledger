@@ -106,6 +106,8 @@ model Transaction {
   liabilityId       String?
   lease             Lease?         @relation("LeasePayments", fields: [leaseId], references: [id])
   leaseId           String?
+  invoice           Invoice?       @relation("InvoicePayments", fields: [invoiceId], references: [id])
+  invoiceId         String?
   createdAt         DateTime       @default(now())
   @@index([farmId, date])
   @@index([farmId, dedupeHash])
@@ -155,7 +157,9 @@ model Invoice {
   issuedAt    DateTime
   dueAt       DateTime
   totalCents  BigInt
+  paidAt      DateTime?
   lineItems   InvoiceLineItem[]
+  payments    Transaction[]     @relation("InvoicePayments")
   @@unique([farmId, number])
 }
 

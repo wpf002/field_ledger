@@ -120,9 +120,21 @@ Prisma directly in server components.
   usage — this moves Dashboard Total Expenses / Net Profit (computed), the
   intended effect of wiring real budgets.
 
+**Phase 6 — complete.** Reporting, exports, invoice lifecycle:
+- **Reports** (`/reports`, reached from the Dashboard/Account): P&L, **Schedule F
+  summary** (tax-ready, grouped by F-line), cash-flow statement, and enterprise
+  (per-herd/per-crop) profitability — for any year, with a locked-period badge.
+  Each exports to **CSV** (`/reports/:type/export`).
+- **Invoice lifecycle**: a print-ready PDF view (`/revenue/invoices/:id`),
+  **Send**, and **Mark Paid** — which posts the income to the ledger as the
+  payment record (linked to the invoice) and clears the overdue alert. All
+  audited.
+- **User data backup** (Invariant 7): Transactions CSV + full JSON export wired
+  on the Account page.
+
 `packages/core` (money, import, valuation, forecast, amortization, alerts,
-budget) is unit-tested (38 tests); `pnpm -r typecheck` is clean across all
-packages.
+budget, reports) is unit-tested (43 tests); `pnpm -r typecheck` is clean across
+all packages.
 
 ## Invariants (do not violate — full list in docs/BUILD-SPEC.md)
 1. Money is integer cents (BigInt). Format only at the display edge.

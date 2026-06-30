@@ -29,3 +29,9 @@ body { background: var(--bg); color: var(--text); }
   @apply w-full rounded-btn border border-border bg-surface px-3 py-2 text-sm text-ink outline-none;
 }
 .input:focus { border-color: var(--primary); }
+
+@media print {
+  aside, .no-print { display: none !important; }
+  main { padding: 0 !important; }
+  body { background: #fff; }
+}

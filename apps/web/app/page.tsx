@@ -11,7 +11,8 @@ import { getBudgetStatuses } from "@/lib/budgets";
 import { BudgetBar } from "@/components/budget-bar";
 import { sumCents } from "@fl/core";
 import { fmtDate } from "@/lib/format";
-import { TrendingUp, TrendingDown, DollarSign, Wallet, CreditCard, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Wallet, CreditCard, ArrowUpRight, ArrowDownRight, Sparkles, FileText } from "lucide-react";
+import Link from "next/link";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
 
@@ -45,7 +46,11 @@ export default async function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Overview" subtitle="Financial health at a glance." />
+      <PageHeader
+        title="Overview"
+        subtitle="Financial health at a glance."
+        action={<Link href="/reports" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><FileText size={15} /> Reports</Link>}
+      />
 
       <div className="grid grid-cols-4 gap-5">
         <StatCard label="Total Income" value={<Money cents={income} />} icon={<TrendingUp className="text-positive" size={18} />} />

@@ -50,6 +50,7 @@ async function main() {
     await prisma.financialGoal.deleteMany({ where: { farmId: id } });
     await prisma.productionPlan.deleteMany({ where: { farmId: id } });
     await prisma.alert.deleteMany({ where: { farmId: id } });
+    await prisma.auditLog.deleteMany({ where: { farmId: id } });
     await prisma.alertSetting.deleteMany({ where: { farmId: id } });
     await prisma.alertDismissal.deleteMany({ where: { farmId: id } });
     await prisma.accountingPeriod.deleteMany({ where: { farmId: id } });

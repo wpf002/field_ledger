@@ -3,6 +3,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { RevenueTabs } from "@/components/revenue-tabs";
+import { InvoiceActions } from "@/components/invoice-actions";
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { sumCents } from "@fl/core";
@@ -40,16 +41,19 @@ export default async function RevenuePage() {
         const overdue = inv.status === "SENT" && inv.dueAt < new Date();
         const display = overdue ? "OVERDUE" : inv.status;
         return (
-        <Card key={inv.id} className="flex items-center justify-between p-5">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="font-serif text-lg font-bold text-ink">#{inv.number}</span>
-              <span className={`rounded-pill px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLE[display]}`}>{display.toLowerCase()}</span>
+        <Card key={inv.id} className="p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <span className="font-serif text-lg font-bold text-ink">#{inv.number}</span>
+                <span className={`rounded-pill px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLE[display]}`}>{display.toLowerCase()}</span>
+              </div>
+              <p className="mt-1 text-sm text-ink">{inv.customer.name}</p>
+              <p className="text-xs text-muted">Issued: {d(inv.issuedAt)} · Due: {d(inv.dueAt)}</p>
             </div>
-            <p className="mt-1 text-sm text-ink">{inv.customer.name}</p>
-            <p className="text-xs text-muted">Issued: {d(inv.issuedAt)} · Due: {d(inv.dueAt)}</p>
+            <span className="font-serif text-2xl font-bold text-ink"><Money cents={inv.totalCents} /></span>
           </div>
-          <span className="font-serif text-2xl font-bold text-ink"><Money cents={inv.totalCents} /></span>
+          <InvoiceActions farmId={farmId} id={inv.id} number={inv.number} status={inv.status} />
         </Card>
         );
       })}
