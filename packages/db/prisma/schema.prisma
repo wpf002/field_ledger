@@ -39,6 +39,8 @@ model Farm {
   periods       AccountingPeriod[]
   alerts        Alert[]
   importBatches ImportBatch[]
+  alertSettings   AlertSetting[]
+  alertDismissals AlertDismissal[]
   createdAt     DateTime        @default(now())
 }
 
@@ -351,4 +353,25 @@ model Alert {
   dueAt      DateTime?
   dismissed  Boolean       @default(false)
   createdAt  DateTime      @default(now())
+}
+
+// Phase 4: alerts are computed live by the rules engine. We persist only the
+// per-rule settings and the set of dismissed alert keys.
+model AlertSetting {
+  id       String  @id @default(uuid())
+  farm     Farm    @relation(fields: [farmId], references: [id])
+  farmId   String
+  type     String  // AlertType
+  enabled  Boolean @default(true)
+  leadDays Int     @default(30)
+  @@unique([farmId, type])
+}
+
+model AlertDismissal {
+  id        String   @id @default(uuid())
+  farm      Farm     @relation(fields: [farmId], references: [id])
+  farmId    String
+  key       String   // stable alert key, e.g. "invoice_overdue:<id>"
+  createdAt DateTime @default(now())
+  @@unique([farmId, key])
 }

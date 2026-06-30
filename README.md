@@ -95,8 +95,20 @@ Prisma directly in server components.
   excluded (a third active lease was added to the seed to exercise this; the two
   original leases stay expired for Phase 4 alerts).
 
-`packages/core` money + import + valuation + forecast + amortization logic is
-unit-tested (30 tests); `pnpm -r typecheck` is clean across all packages.
+**Phase 4 — complete.** Alerts engine:
+- **Rules** (`@fl/core` `evaluateAlerts`) over existing dates/state: payment-due
+  reminders (ahead of the due date), overdue-invoice nudges, lease-expiry
+  warnings, budget-overage. Alerts are computed live (never stale).
+- **In-app surface**: a bell + badge in the sidebar opens an alerts drawer
+  (severity-sorted, dismissible) with **per-rule settings** toggles. Email
+  delivery is flagged off (seam present, not enabled).
+- **Contextual flags**: expired leases get an "Expired" badge on the Leases
+  page; past-due invoices show an "Overdue" pill on Revenue.
+- Persistence: only dismissals (`AlertDismissal`) and settings (`AlertSetting`)
+  are stored; the alert list itself is always recomputed.
+
+`packages/core` (money, import, valuation, forecast, amortization, alerts) is
+unit-tested (34 tests); `pnpm -r typecheck` is clean across all packages.
 
 ## Invariants (do not violate — full list in docs/BUILD-SPEC.md)
 1. Money is integer cents (BigInt). Format only at the display edge.

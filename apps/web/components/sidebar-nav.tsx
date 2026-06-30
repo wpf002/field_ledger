@@ -6,6 +6,7 @@ import {
   LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText,
   PieChart, TrendingUp, Calendar, MessageSquare, UserCircle2,
 } from "lucide-react";
+import { AlertsBell } from "@/components/alerts-bell";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -24,9 +25,12 @@ export function SidebarNav() {
   const path = usePathname();
   return (
     <aside className="w-[280px] shrink-0 border-r border-border bg-bg flex flex-col">
-      <div className="px-6 py-6 border-b border-border">
-        <h1 className="font-serif text-2xl font-bold text-primary">Field &amp; Ledger</h1>
-        <p className="text-muted text-sm mt-0.5">Farm Management</p>
+      <div className="flex items-start justify-between px-6 py-6 border-b border-border">
+        <div>
+          <h1 className="font-serif text-2xl font-bold text-primary">Field &amp; Ledger</h1>
+          <p className="text-muted text-sm mt-0.5">Farm Management</p>
+        </div>
+        <AlertsBell />
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
         {NAV.map(({ href, label, icon: Icon }) => {

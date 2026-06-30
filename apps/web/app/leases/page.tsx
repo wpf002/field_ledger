@@ -8,7 +8,9 @@ import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { sumCents } from "@fl/core";
 import { utcYear } from "@/lib/format";
-import { Plus, User, LandPlot, Calendar } from "lucide-react";
+import { Plus, User, LandPlot, Calendar, AlertTriangle } from "lucide-react";
+
+export const dynamic = "force-dynamic";
 
 export default async function LeasesPage() {
   const farmId = await getDemoFarmId();
@@ -31,10 +33,17 @@ export default async function LeasesPage() {
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-5">
-        {leases.map((l) => (
-          <Card key={l.id} className="p-6">
+        {leases.map((l) => {
+          const expired = l.termEnd < new Date();
+          return (
+          <Card key={l.id} className={`p-6 ${expired ? "ring-1 ring-negative/30" : ""}`}>
             <div className="flex items-start justify-between">
               <CategoryPill>{l.type === "CASH_RENT" ? "Cash Rent" : "Crop Share"}</CategoryPill>
+              {expired && (
+                <span className="inline-flex items-center gap-1 rounded-pill bg-[#F3E3E0] px-2.5 py-0.5 text-xs font-medium text-negative">
+                  <AlertTriangle size={12} /> Expired
+                </span>
+              )}
             </div>
             <h3 className="mt-3 font-serif text-2xl font-semibold text-ink">{l.name}</h3>
             <div className="mt-3 flex items-center justify-between text-sm text-muted">
@@ -55,7 +64,8 @@ export default async function LeasesPage() {
               </div>
             </div>
           </Card>
-        ))}
+          );
+        })}
       </div>
     </>
   );

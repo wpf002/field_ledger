@@ -50,6 +50,8 @@ async function main() {
     await prisma.financialGoal.deleteMany({ where: { farmId: id } });
     await prisma.productionPlan.deleteMany({ where: { farmId: id } });
     await prisma.alert.deleteMany({ where: { farmId: id } });
+    await prisma.alertSetting.deleteMany({ where: { farmId: id } });
+    await prisma.alertDismissal.deleteMany({ where: { farmId: id } });
     await prisma.accountingPeriod.deleteMany({ where: { farmId: id } });
     await prisma.account.deleteMany({ where: { farmId: id } });
     await prisma.membership.deleteMany({ where: { farmId: id } });
@@ -176,7 +178,7 @@ async function main() {
     data: {
       farmId: farm.id, type: LeaseType.CASH_RENT, name: "Bottomland Tract", lessor: "Hartley Trust",
       acres: 180, termStart: new Date("2025-01-01"), termEnd: new Date("2028-12-31"),
-      annualRentCents: 4500000n, paymentFreq: "annual", nextPaymentAt: new Date("2026-09-01"),
+      annualRentCents: 4500000n, paymentFreq: "annual", nextPaymentAt: new Date("2026-07-15"),
     },
   });
 
