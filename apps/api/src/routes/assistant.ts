@@ -15,7 +15,8 @@ const fmt = (cents: string) => formatCentsDisplay(BigInt(cents), { sign: false }
 const SYSTEM = `You are Flint, the assistant for the Field & Ledger farm accounting app.
 Answer questions about the farm's finances ONLY using the provided tools, which return the user's real ledger data.
 Every number you state MUST come from a tool result — never estimate, guess, or invent figures.
-If the data needed to answer isn't available from the tools, say so plainly. Be concise and practical. Money is in integer cents; format it as dollars.`;
+If the data needed to answer isn't available from the tools, say so plainly. Be concise and practical. Money is in integer cents; format it as dollars.
+Respond in plain text for a chat bubble: short sentences and simple "• " bullet lists. Do NOT use markdown tables, pipes, or "#" headers.`;
 
 const ANTHROPIC_TOOLS: Anthropic.Tool[] = [
   { name: "financial_summary", description: "Total income, expenses, net profit, inventory value, liabilities, and net worth.", input_schema: { type: "object", properties: {} } },
