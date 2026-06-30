@@ -132,9 +132,25 @@ Prisma directly in server components.
 - **User data backup** (Invariant 7): Transactions CSV + full JSON export wired
   on the Account page.
 
+**Phase 7 — complete.** AI Assistant (Flint), grounded with confirm-before-write:
+- **Grounding (Invariant 3)**: a ledger tool layer (cash position, transactions,
+  obligations, valuation, budgets, Schedule F, alerts) returns the farm's *real*
+  data. Every figure the assistant states traces to a tool result — nothing is
+  invented; if data is missing it says so.
+- **Chat**: answers from those tools. With an `ANTHROPIC_API_KEY` it routes
+  through Claude (`claude-opus-4-8`) tool-calling; without one, a deterministic
+  router answers from the same tools (so it's verifiable today). A badge shows
+  which mode is live.
+- **Quick Log**: natural-language entry → a **draft** transaction → human
+  confirm → posted via the audited `/transactions` route. Never writes directly.
+- **Receipt Capture**: upload → draft → confirm. Claude vision auto-fills the
+  draft when keyed; otherwise a skeleton draft for manual entry (vision flagged).
+- The LLM is a pluggable enhancement: set `ANTHROPIC_API_KEY` in `.env` to light
+  it up. Grounding and the confirm checkpoints are identical either way.
+
 `packages/core` (money, import, valuation, forecast, amortization, alerts,
-budget, reports) is unit-tested (43 tests); `pnpm -r typecheck` is clean across
-all packages.
+budget, reports, assistant) is unit-tested (47 tests); `pnpm -r typecheck` is
+clean across all packages.
 
 ## Invariants (do not violate — full list in docs/BUILD-SPEC.md)
 1. Money is integer cents (BigInt). Format only at the display edge.

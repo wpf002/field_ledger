@@ -8,3 +8,4 @@ export * from "./amortization.js";
 export * from "./alerts.js";
 export * from "./budget.js";
 export * from "./reports.js";
+export * from "./assistant.js";
