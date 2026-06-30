@@ -99,6 +99,11 @@ model Transaction {
   dedupeHash        String?        // hash(date, amountCents, normalized description)
   reconciled        Boolean        @default(false)
   reconciledAt      DateTime?
+  // obligation auto-posting (Phase 3): trace a payment back to its loan/lease
+  liability         Liability?     @relation("LiabilityPayments", fields: [liabilityId], references: [id])
+  liabilityId       String?
+  lease             Lease?         @relation("LeasePayments", fields: [leaseId], references: [id])
+  leaseId           String?
   createdAt         DateTime       @default(now())
   @@index([farmId, date])
   @@index([farmId, dedupeHash])
@@ -235,6 +240,8 @@ model Liability {
   ratePct         Decimal       @db.Decimal(6, 3)
   nextPaymentAt   DateTime?
   paymentCents    BigInt?
+  paymentFreq     String        @default("monthly") // monthly | quarterly | semiannual | annual
+  payments        Transaction[] @relation("LiabilityPayments")
   createdAt       DateTime      @default(now())
 }
 
@@ -254,8 +261,11 @@ model Lease {
   acres           Decimal   @db.Decimal(12, 2)
   termStart       DateTime
   termEnd         DateTime
-  annualRentCents BigInt?   // null for crop share
-  createdAt       DateTime  @default(now())
+  annualRentCents BigInt?       // null for crop share
+  paymentFreq     String        @default("annual") // annual | semiannual | quarterly | monthly
+  nextPaymentAt   DateTime?      // next rent due date (cash rent)
+  payments        Transaction[] @relation("LeasePayments")
+  createdAt       DateTime      @default(now())
 }
 
 // ---------- Budgets & goals ----------

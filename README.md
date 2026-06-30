@@ -82,8 +82,21 @@ Prisma directly in server components.
   `estValueCents`. The **Prophet forecasting seam** (`@fl/core` `Forecaster`) backs
   the Insights projection — naive baseline now, Prophet drops in unchanged.
 
-`packages/core` money + import + valuation + forecast logic is unit-tested (24
-tests); `pnpm -r typecheck` is clean across all packages.
+**Phase 3 — complete.** Obligations engine:
+- **Amortization** (`@fl/core` `amortizationSchedule`): each scheduled payment
+  split into interest + principal with a declining balance; full payoff schedule.
+- **Auto-post** (`POST .../liabilities/:id/post-payment`): posts the next payment
+  to the ledger — interest as a Schedule F expense, principal off the balance —
+  advances the next due date, all audited. The Liabilities page recomputes debt,
+  monthly interest, and % paid from the records with no manual edits.
+- **Lease schedules** + **obligations window** (`obligationsInWindow`): scheduled
+  loan payments that fall in the window plus prorated rent for *active* cash
+  leases drive Insights "Upcoming Obligations". Expired/crop-share leases are
+  excluded (a third active lease was added to the seed to exercise this; the two
+  original leases stay expired for Phase 4 alerts).
+
+`packages/core` money + import + valuation + forecast + amortization logic is
+unit-tested (30 tests); `pnpm -r typecheck` is clean across all packages.
 
 ## Invariants (do not violate — full list in docs/BUILD-SPEC.md)
 1. Money is integer cents (BigInt). Format only at the display edge.

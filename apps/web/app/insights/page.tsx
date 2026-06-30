@@ -5,7 +5,7 @@ import { InsightsProjectionChart, type ProjectionDatum } from "@/components/char
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { getValuedInventory, inventoryTotals } from "@/lib/valuation";
-import { sumCents, formatCentsDisplay, naiveForecaster, type MonthFlow } from "@fl/core";
+import { sumCents, formatCentsDisplay, naiveForecaster, obligationsInWindow, type MonthFlow } from "@fl/core";
 import { CalendarRange, CircleCheck, TriangleAlert } from "lucide-react";
 
 const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
@@ -26,16 +26,17 @@ export default async function InsightsPage() {
   const marketable = valued.filter((v) => v.valuation.marketable);
   const marketableValue = inventoryTotals(valued).marketable;
 
-  // Upcoming obligations (next 90 days). All integer cents — no float artifacts.
-  const horizon = new Date("2026-06-30");
-  horizon.setDate(horizon.getDate() + 90);
-  const loanPayments = sumCents(
-    liabilities.filter((l) => l.nextPaymentAt && l.nextPaymentAt <= horizon).map((l) => l.paymentCents ?? 0n),
+  // Upcoming obligations (next 90 days) — driven by the obligations engine over
+  // the loan/lease records (Phase 3). Editing a loan/lease updates this with no
+  // manual edits. All integer cents.
+  const obligations = obligationsInWindow(
+    liabilities.map((l) => ({ id: l.id, name: l.name, balanceCents: l.balanceCents, ratePct: Number(l.ratePct), paymentCents: l.paymentCents, nextPaymentAt: l.nextPaymentAt, paymentFreq: l.paymentFreq })),
+    leases.map((l) => ({ id: l.id, name: l.name, type: l.type, annualRentCents: l.annualRentCents, termStart: l.termStart, termEnd: l.termEnd })),
+    new Date(), 90,
   );
-  const leasePayments = sumCents(
-    leases.filter((l) => l.annualRentCents).map((l) => (l.annualRentCents as bigint) / 4n), // one quarter
-  );
-  const obligationsTotal = loanPayments + leasePayments;
+  const loanPayments = obligations.loanPaymentsCents;
+  const leasePayments = obligations.leasePaymentsCents;
+  const obligationsTotal = obligations.totalCents;
   const estOperating = 25000n; // Phase-0 placeholder; Phase 2 Prophet supplies the real run-rate
 
   const projectedExpenses = obligationsTotal + estOperating;

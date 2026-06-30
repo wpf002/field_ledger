@@ -5,11 +5,14 @@ import { Card } from "@/components/ui/card";
 import { CategoryPill } from "@/components/ui/category-pill";
 import { Money } from "@/components/ui/money";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { LiabilitySchedule } from "@/components/liability-schedule";
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { sumCents, roundCentsToDollar } from "@fl/core";
 import { fmtMonthDay } from "@/lib/format";
 import { Plus, Calendar } from "lucide-react";
+
+export const dynamic = "force-dynamic";
 
 const TYPE_LABEL: Record<string, string> = {
   EQUIPMENT_LOAN: "Equipment Loan",
@@ -76,6 +79,8 @@ export default async function LiabilitiesPage() {
                   </p>
                 </div>
               </div>
+
+              <LiabilitySchedule farmId={farmId} id={l.id} name={l.name} nextPaymentAt={l.nextPaymentAt?.toISOString() ?? null} />
             </Card>
           );
         })}

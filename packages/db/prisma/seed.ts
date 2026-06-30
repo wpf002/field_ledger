@@ -170,6 +170,15 @@ async function main() {
       acres: 120, termStart: new Date("2023-01-01"), termEnd: new Date("2024-12-31"), annualRentCents: null,
     },
   });
+  // Active cash-rent lease — drives the obligations engine (the two above are
+  // expired and kept for Phase 4 lease-expiry alerts).
+  await prisma.lease.create({
+    data: {
+      farmId: farm.id, type: LeaseType.CASH_RENT, name: "Bottomland Tract", lessor: "Hartley Trust",
+      acres: 180, termStart: new Date("2025-01-01"), termEnd: new Date("2028-12-31"),
+      annualRentCents: 4500000n, paymentFreq: "annual", nextPaymentAt: new Date("2026-09-01"),
+    },
+  });
 
   // --- customers + invoices ---
   const greenValley = await prisma.customer.create({ data: { farmId: farm.id, name: "Green Valley Restaurant" } });
