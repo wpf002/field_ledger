@@ -107,8 +107,22 @@ Prisma directly in server components.
 - Persistence: only dismissals (`AlertDismissal`) and settings (`AlertSetting`)
   are stored; the alert list itself is always recomputed.
 
-`packages/core` (money, import, valuation, forecast, amortization, alerts) is
-unit-tested (34 tests); `pnpm -r typecheck` is clean across all packages.
+**Phase 5 — complete.** Budgets & production planning, fully wired:
+- **Budget-vs-actual** (`@fl/core` `budgetStatus`): YTD spend from the ledger;
+  monthly budgets prorate to the elapsed window. Drives the Budgets page
+  (Monthly/Annual tabs with fill bars + over-budget red state), the Dashboard
+  **Budget Health** bars (now filled, not empty), and the budget_over alert.
+  "Set Budget" creates/updates a budget.
+- **Production planning**: the Planning calendar renders plans across their date
+  range with per-kind colors; **List view** parity; **New Production Plan** flow
+  creates a plan that appears immediately in both views.
+- Seed gains a 2026 operating year (expenses across months) so budgets show real
+  usage — this moves Dashboard Total Expenses / Net Profit (computed), the
+  intended effect of wiring real budgets.
+
+`packages/core` (money, import, valuation, forecast, amortization, alerts,
+budget) is unit-tested (38 tests); `pnpm -r typecheck` is clean across all
+packages.
 
 ## Invariants (do not violate — full list in docs/BUILD-SPEC.md)
 1. Money is integer cents (BigInt). Format only at the display edge.

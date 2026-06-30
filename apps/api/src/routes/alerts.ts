@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@fl/db";
 import { z } from "zod";
-import { evaluateAlerts, mergeSettings, sumCents, type AlertInputs } from "@fl/core";
+import { evaluateAlerts, mergeSettings, budgetStatus, type AlertInputs } from "@fl/core";
 
-/** Budget vs actual spend per budget row (for the budget_over rule). */
+/** Budget vs actual per budget (prorated target) for the budget_over rule. */
 async function budgetActuals(farmId: string): Promise<AlertInputs["budgetActuals"]> {
   const [budgets, txns, accounts] = await Promise.all([
     prisma.budget.findMany({ where: { farmId } }),
@@ -11,13 +11,11 @@ async function budgetActuals(farmId: string): Promise<AlertInputs["budgetActuals
     prisma.account.findMany({ where: { farmId } }),
   ]);
   const labelByCode = new Map(accounts.map((a) => [a.code, a.label]));
+  const expenses = txns.map((t) => ({ accountCode: t.account.code, amountCents: t.amountCents, date: t.date }));
+  const now = new Date();
   return budgets.map((b) => {
-    const actualCents = sumCents(
-      txns.filter((t) => t.account.code === b.accountCode && t.amountCents < 0n &&
-        t.date.getUTCFullYear() === b.year && (b.period !== "MONTHLY" || !b.month || t.date.getUTCMonth() + 1 === b.month))
-        .map((t) => -t.amountCents),
-    );
-    return { id: b.id, label: labelByCode.get(b.accountCode) ?? b.accountCode, budgetCents: b.amountCents, actualCents };
+    const st = budgetStatus({ id: b.id, period: b.period, year: b.year, month: b.month, accountCode: b.accountCode, amountCents: b.amountCents, label: labelByCode.get(b.accountCode) }, expenses, now);
+    return { id: b.id, label: st.label, budgetCents: st.targetCents, actualCents: st.actualCents };
   });
 }
 

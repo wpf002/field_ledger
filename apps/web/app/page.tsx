@@ -2,12 +2,13 @@ import { StatCard } from "@/components/ui/stat-card";
 import { HeroBand } from "@/components/ui/hero-band";
 import { Money } from "@/components/ui/money";
 import { Card, SectionHeading } from "@/components/ui/card";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import { PageHeader } from "@/components/ui/page-header";
 import { CashFlowChart, type CashFlowDatum } from "@/components/charts/cash-flow-chart";
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { getValuedInventory, inventoryTotals } from "@/lib/valuation";
+import { getBudgetStatuses } from "@/lib/budgets";
+import { BudgetBar } from "@/components/budget-bar";
 import { sumCents } from "@fl/core";
 import { fmtDate } from "@/lib/format";
 import { TrendingUp, TrendingDown, DollarSign, Wallet, CreditCard, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
@@ -16,12 +17,11 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
 
 export default async function Dashboard() {
   const farmId = await getDemoFarmId();
-  const [txns, valued, liabilities, budgets, accounts] = await Promise.all([
+  const [txns, valued, liabilities, budgetStatuses] = await Promise.all([
     prisma.transaction.findMany({ where: { farmId }, orderBy: { date: "desc" }, include: { account: true } }),
     getValuedInventory(farmId),
     prisma.liability.findMany({ where: { farmId } }),
-    prisma.budget.findMany({ where: { farmId } }),
-    prisma.account.findMany({ where: { farmId } }),
+    getBudgetStatuses(farmId),
   ]);
 
   const income = sumCents(txns.filter((t) => t.amountCents > 0n).map((t) => t.amountCents));
@@ -40,7 +40,7 @@ export default async function Dashboard() {
     return { month, income: Number(inc) / 100, expenses: Number(exp) / 100 };
   });
 
-  const labelFor = (code: string) => accounts.find((a) => a.code === code)?.label ?? code;
+  const healthBudgets = budgetStatuses.slice(0, 4);
   const recent = txns.slice(0, 4);
 
   return (
@@ -74,16 +74,8 @@ export default async function Dashboard() {
           <Card className="p-6">
             <SectionHeading title="Budget Health" action={<a href="/budgets" className="text-sm text-muted hover:text-ink">View All</a>} />
             <div className="mt-4 space-y-4">
-              {budgets.map((b) => (
-                <div key={b.id}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-ink">{labelFor(b.accountCode)}</span>
-                    <span className="text-muted">{b.period === "MONTHLY" ? "Monthly" : "Annual"} Budget: <Money cents={b.amountCents} /></span>
-                  </div>
-                  <div className="mt-2"><ProgressBar pct={0} /></div>
-                </div>
-              ))}
-              <p className="pt-2 text-center text-sm text-muted">Visit Budgets page for detailed analysis.</p>
+              {healthBudgets.map((b) => <BudgetBar key={b.id} status={b.status} />)}
+              {healthBudgets.length === 0 && <p className="pt-2 text-center text-sm text-muted">No budgets set yet.</p>}
             </div>
           </Card>
         </div>

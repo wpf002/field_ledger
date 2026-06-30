@@ -3,16 +3,30 @@ import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { ExpenseBudgets } from "@/components/expense-budgets";
+import { BudgetBar } from "@/components/budget-bar";
+import { SetBudgetButton } from "@/components/set-budget-button";
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
+import { getBudgetStatuses } from "@/lib/budgets";
 import { fmtMonthYear } from "@/lib/format";
 import { Clock, Target, Plus } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 const monthYear = (date: Date | null) => (date ? fmtMonthYear(date) : "");
+const year = new Date().getUTCFullYear();
 
 export default async function BudgetsPage() {
   const farmId = await getDemoFarmId();
-  const goals = await prisma.financialGoal.findMany({ where: { farmId }, orderBy: { name: "asc" } });
+  const [goals, budgets] = await Promise.all([
+    prisma.financialGoal.findMany({ where: { farmId }, orderBy: { name: "asc" } }),
+    getBudgetStatuses(farmId),
+  ]);
+  const monthly = budgets.filter((b) => b.period === "MONTHLY");
+  const annual = budgets.filter((b) => b.period === "ANNUAL");
+  const list = (rows: typeof budgets, label: string) =>
+    rows.length ? <div className="space-y-5">{rows.map((b) => <BudgetBar key={b.id} status={b.status} />)}</div>
+      : <p className="py-6 text-center text-sm text-muted">No {label} budgets set for {year}.</p>;
 
   return (
     <>
@@ -23,12 +37,9 @@ export default async function BudgetsPage() {
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h3 className="flex items-center gap-2 font-serif text-xl font-semibold text-ink"><Clock size={18} /> Expense Budgets</h3>
-            <button className="flex items-center gap-1.5 rounded-btn border border-border px-3 py-2 text-sm text-ink hover:bg-tag/40"><Plus size={15} /> Set Budget</button>
+            <SetBudgetButton farmId={farmId} />
           </div>
-          <ExpenseBudgets
-            monthly={<p className="text-center text-sm text-muted">No monthly budgets set for 2026.</p>}
-            annual={<p className="text-center text-sm text-muted">No annual budgets set for 2026.</p>}
-          />
+          <ExpenseBudgets monthly={list(monthly, "monthly")} annual={list(annual, "annual")} />
         </div>
 
         {/* Financial goals */}

@@ -17,7 +17,7 @@ export function ExpenseBudgets({ monthly, annual }: { monthly: React.ReactNode; 
           { value: "annual", label: "Annual (2026)" },
         ]}
       />
-      <Card className="mt-4 px-6 py-12">
+      <Card className="mt-4 p-6">
         {tab === "monthly" ? monthly : annual}
       </Card>
     </div>

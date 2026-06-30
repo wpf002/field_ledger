@@ -1,9 +1,10 @@
 import { PageHeader } from "@/components/ui/page-header";
-import { PrimaryButton } from "@/components/ui/button";
+import { NewPlanButton } from "@/components/new-plan-button";
 import { PlanningView, type PlanLite } from "@/components/planning-view";
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
-import { Plus } from "lucide-react";
+
+export const dynamic = "force-dynamic";
 
 export default async function PlanningPage() {
   const farmId = await getDemoFarmId();
@@ -18,7 +19,7 @@ export default async function PlanningPage() {
       <PageHeader
         title="Production Planning"
         subtitle="Manage livestock and crop production cycles."
-        action={<PrimaryButton><Plus size={16} /> New Production Plan</PrimaryButton>}
+        action={<NewPlanButton farmId={farmId} />}
       />
       <PlanningView plans={lite} />
     </>

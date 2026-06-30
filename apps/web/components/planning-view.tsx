@@ -2,13 +2,18 @@
 import { useState } from "react";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, CalendarDays, List } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 
 export type PlanLite = { id: string; title: string; kind: string; startAt: string; endAt: string | null };
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+const KIND_COLOR: Record<string, string> = {
+  planting: "bg-primary", calving: "bg-brown", harvest: "bg-rust", breeding: "bg-[#3B6087]", other: "bg-muted",
+};
+const utcDay = (iso: string) => { const d = new Date(iso); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
 
 export function PlanningView({ plans }: { plans: PlanLite[] }) {
   const [view, setView] = useState<"calendar" | "list">("calendar");
@@ -25,8 +30,11 @@ export function PlanningView({ plans }: { plans: PlanLite[] }) {
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const plansOn = (day: number) =>
-    plans.filter((p) => sameDay(new Date(p.startAt), new Date(year, month, day)));
+  // A plan covers a day if the day falls within [startAt, endAt] (UTC day compare).
+  const plansOn = (day: number) => {
+    const cell = Date.UTC(year, month, day);
+    return plans.filter((p) => utcDay(p.startAt) <= cell && cell <= utcDay(p.endAt ?? p.startAt));
+  };
 
   return (
     <>
@@ -63,7 +71,7 @@ export function PlanningView({ plans }: { plans: PlanLite[] }) {
                   {day && <span className="text-sm text-ink">{day}</span>}
                   <div className="mt-1 space-y-1">
                     {day && plansOn(day).map((p) => (
-                      <div key={p.id} className="truncate rounded bg-primary px-1.5 py-0.5 text-[11px] text-white">{p.title}</div>
+                      <div key={p.id} className={`truncate rounded px-1.5 py-0.5 text-[11px] text-white ${KIND_COLOR[p.kind] ?? "bg-primary"}`} title={p.title}>{p.title}</div>
                     ))}
                   </div>
                 </div>
@@ -80,15 +88,18 @@ export function PlanningView({ plans }: { plans: PlanLite[] }) {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {plans.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 py-3">
-                  <List size={16} className="text-muted" />
-                  <div>
-                    <p className="font-medium text-ink">{p.title}</p>
-                    <p className="text-xs text-muted capitalize">{p.kind} · {new Date(p.startAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+              {plans.map((p) => {
+                const fmt = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+                return (
+                  <div key={p.id} className="flex items-center gap-3 py-3">
+                    <span className={`h-2.5 w-2.5 shrink-0 rounded-pill ${KIND_COLOR[p.kind] ?? "bg-primary"}`} />
+                    <div>
+                      <p className="font-medium text-ink">{p.title}</p>
+                      <p className="text-xs text-muted capitalize">{p.kind} · {fmt(p.startAt)}{p.endAt ? ` – ${fmt(p.endAt)}` : ""}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>

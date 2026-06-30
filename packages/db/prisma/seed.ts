@@ -126,6 +126,12 @@ async function main() {
   const tx = [
     { date: "2026-03-14", description: "Sold 5 head of cattle at Weatherford Cattle Auction", code: "livestock_sales_raised", amountCents: 673065n, relatedInventoryId: angus.id },
     { date: "2026-03-13", description: "Bought 400 lbs of mixed cube feed for cattle from Tractor Supply", code: "feed", amountCents: -50000n, relatedLabel: "mixed cube feed" },
+    // 2026 operating expenses across the year — drive budget-vs-actual (Phase 5)
+    { date: "2026-02-08", description: "Diesel delivery", code: "fuel", amountCents: -52000n },
+    { date: "2026-04-18", description: "Spring fertilizer — north fields", code: "fertilizer", amountCents: -680000n },
+    { date: "2026-05-12", description: "Feed restock", code: "feed", amountCents: -115000n },
+    { date: "2026-06-09", description: "Combine belt repair", code: "repairs_maintenance", amountCents: -110000n },
+    { date: "2026-06-21", description: "Herd health check", code: "veterinary", amountCents: -115000n },
     { date: "2023-11-09", description: "Diesel for tractors", code: "fuel", amountCents: -45000n },
     { date: "2023-11-04", description: "Fall vaccinations", code: "veterinary", amountCents: -120000n },
     { date: "2023-10-31", description: "Soybean harvest batch 1", code: "crop_sales", amountCents: 500000n },
@@ -198,10 +204,14 @@ async function main() {
     },
   });
 
-  // --- budgets (drive Dashboard Budget Health; 2024 so 2026 monthly view is empty) ---
-  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.MONTHLY, year: 2024, month: 1, accountCode: "feed", amountCents: 200000n } });
-  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.MONTHLY, year: 2024, month: 1, accountCode: "fuel", amountCents: 50000n } });
-  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.ANNUAL, year: 2024, month: null, accountCode: "fertilizer", amountCents: 1000000n } });
+  // --- budgets (2026, drive the Budgets page + Dashboard Budget Health vs real
+  //     spend). Monthly budgets are recurring (month null); vet is intentionally
+  //     over budget to exercise the budget_over alert. ---
+  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.MONTHLY, year: 2026, month: null, accountCode: "feed", amountCents: 35000n } });
+  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.MONTHLY, year: 2026, month: null, accountCode: "fuel", amountCents: 15000n } });
+  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.ANNUAL, year: 2026, month: null, accountCode: "fertilizer", amountCents: 800000n } });
+  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.ANNUAL, year: 2026, month: null, accountCode: "repairs_maintenance", amountCents: 250000n } });
+  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.ANNUAL, year: 2026, month: null, accountCode: "veterinary", amountCents: 100000n } });
 
   // --- financial goals ---
   await prisma.financialGoal.create({
@@ -210,6 +220,21 @@ async function main() {
   await prisma.financialGoal.create({
     data: { farmId: farm.id, name: "2024 Gross Revenue", kind: "income_target", targetCents: 15000000n, currentCents: 4500000n, dueAt: new Date("2024-12-01") },
   });
+
+  // --- production plans (Phase 5: render on the Planning calendar + list) ---
+  const plans = [
+    { title: "Spring calving", kind: "calving", startAt: "2026-03-01", endAt: "2026-04-15", note: "First-calf heifers, North Pasture" },
+    { title: "Corn planting — North Field", kind: "planting", startAt: "2026-04-15", endAt: "2026-04-30", note: "120 acres" },
+    { title: "Soybean planting — Bottomland", kind: "planting", startAt: "2026-05-10", endAt: "2026-05-25", note: "Bottomland Tract" },
+    { title: "Pasture rotation", kind: "other", startAt: "2026-06-10", endAt: "2026-06-12", note: null },
+    { title: "First hay cutting", kind: "harvest", startAt: "2026-06-20", endAt: "2026-06-25", note: "Aim for 200 bales" },
+    { title: "Winter wheat harvest", kind: "harvest", startAt: "2026-07-05", endAt: "2026-07-25", note: "Silo 1" },
+  ] as const;
+  for (const p of plans) {
+    await prisma.productionPlan.create({
+      data: { farmId: farm.id, title: p.title, kind: p.kind, startAt: new Date(p.startAt), endAt: new Date(p.endAt), note: p.note ?? null },
+    });
+  }
 
   console.log("Seeded demo farm:", farm.id);
 }
