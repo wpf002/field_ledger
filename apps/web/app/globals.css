@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #F4F1E9;
+  --surface: #FFFFFF;
+  --surface-sunken: #EFEBE0;
+  --border: #E4DFD2;
+  --primary: #34492E;
+  --primary-deep: #2A3B25;
+  --brown: #6B4327;
+  --rust: #B5701F;
+  --text: #2B2B26;
+  --text-muted: #76705F;
+  --positive: #3F7A3A;
+  --negative: #9E2B2B;
+  --tag-bg: #ECE8DC;
+  --mint: #E8F0E4;
+  --cream-tint: #F6EFDD;
+  --radius-card: 16px;
+  --radius-btn: 10px;
+  --radius-pill: 999px;
+}
+
+body { background: var(--bg); color: var(--text); }
+.label { @apply font-sans uppercase tracking-wider text-muted text-xs; }
+.input {
+  @apply w-full rounded-btn border border-border bg-surface px-3 py-2 text-sm text-ink outline-none;
+}
+.input:focus { border-color: var(--primary); }

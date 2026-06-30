@@ -1,0 +1,196 @@
+import {
+  prisma,
+  AccountKind,
+  InventoryCategory,
+  LiabilityType,
+  LeaseType,
+  InvoiceStatus,
+  BasisType,
+  BudgetPeriod,
+} from "../src/index.js";
+import { SCHEDULE_F } from "@fl/core";
+
+/**
+ * Seeds the demo "Field & Ledger" farm mirroring the reference screenshots,
+ * with all money as integer cents (Invariant 1). Idempotent: wipes the demo
+ * farm's rows first so `pnpm db:seed` can be re-run. Run: pnpm db:seed
+ *
+ * Every figure here is sampled from the original Base44 screenshots and
+ * reconciles to the dashboard KPIs:
+ *   income  673065 + 500000 + 1500000               = 2673065  ($26,730.65)
+ *   expense  50000 +  45000 +  120000 + 250000       =  465000  ($4,650)
+ *   net                                              = 2208065  ($22,080.65)
+ *   inventory 8100000 + 6000000 + 7000000 + 12000000 = 33100000 ($331,000)
+ */
+
+// Display labels for the categories that appear in the UI. The chart of
+// accounts keeps the formal IRS Schedule F label for everything else.
+const LABEL_OVERRIDES: Record<string, string> = {
+  livestock_sales_raised: "Livestock Sales",
+  crop_sales: "Crop Sales",
+  feed: "Feed",
+  fuel: "Fuel",
+  veterinary: "Veterinary",
+  fertilizer: "Fertilizer",
+};
+
+async function main() {
+  // --- reset demo data (FK-safe order) ---
+  const existing = await prisma.farm.findMany({ select: { id: true } });
+  for (const { id } of existing) {
+    await prisma.transaction.deleteMany({ where: { farmId: id } });
+    await prisma.invoiceLineItem.deleteMany({ where: { invoice: { farmId: id } } });
+    await prisma.invoice.deleteMany({ where: { farmId: id } });
+    await prisma.customer.deleteMany({ where: { farmId: id } });
+    await prisma.inventoryItem.deleteMany({ where: { farmId: id } });
+    await prisma.liability.deleteMany({ where: { farmId: id } });
+    await prisma.lease.deleteMany({ where: { farmId: id } });
+    await prisma.budget.deleteMany({ where: { farmId: id } });
+    await prisma.financialGoal.deleteMany({ where: { farmId: id } });
+    await prisma.productionPlan.deleteMany({ where: { farmId: id } });
+    await prisma.alert.deleteMany({ where: { farmId: id } });
+    await prisma.accountingPeriod.deleteMany({ where: { farmId: id } });
+    await prisma.account.deleteMany({ where: { farmId: id } });
+    await prisma.membership.deleteMany({ where: { farmId: id } });
+    await prisma.farm.delete({ where: { id } });
+  }
+
+  const farm = await prisma.farm.create({ data: { name: "Field & Ledger Demo Farm" } });
+
+  // --- chart of accounts from Schedule F (Invariant 6) ---
+  for (const l of Object.values(SCHEDULE_F)) {
+    await prisma.account.create({
+      data: {
+        farmId: farm.id,
+        code: l.code,
+        label: LABEL_OVERRIDES[l.code] ?? l.label,
+        kind: l.kind === "income" ? AccountKind.INCOME : AccountKind.EXPENSE,
+        scheduleFCode: l.code,
+      },
+    });
+  }
+  const acct = async (code: string) =>
+    (await prisma.account.findUniqueOrThrow({ where: { farmId_code: { farmId: farm.id, code } } })).id;
+
+  // --- accounting periods (Invariant 2: closed years locked) ---
+  await prisma.accountingPeriod.create({ data: { farmId: farm.id, year: 2023, locked: true, lockedAt: new Date("2024-04-15") } });
+  await prisma.accountingPeriod.create({ data: { farmId: farm.id, year: 2024, locked: true, lockedAt: new Date("2025-04-15") } });
+  await prisma.accountingPeriod.create({ data: { farmId: farm.id, year: 2026, locked: false } });
+
+  // --- inventory ---
+  const angus = await prisma.inventoryItem.create({
+    data: {
+      farmId: farm.id, category: InventoryCategory.LIVESTOCK, name: "Angus Cattle",
+      quantity: 45, unit: "head", location: "North Pasture",
+      unitValueCents: 180000n, estValueCents: 8100000n, marketSymbol: "LE=F", basisType: BasisType.RAISED,
+    },
+  });
+  await prisma.inventoryItem.create({
+    data: {
+      farmId: farm.id, category: InventoryCategory.FEED, name: "Hay Bales",
+      quantity: 200, unit: "bales", location: "Feed Shed",
+      unitValueCents: 30000n, estValueCents: 6000000n,
+    },
+  });
+  await prisma.inventoryItem.create({
+    data: {
+      farmId: farm.id, category: InventoryCategory.CROPS, name: "Winter Wheat",
+      quantity: 5000, unit: "bushels", location: "Silo 1",
+      unitValueCents: 1400n, estValueCents: 7000000n, marketSymbol: "ZW=F",
+    },
+  });
+  await prisma.inventoryItem.create({
+    data: {
+      farmId: farm.id, category: InventoryCategory.EQUIPMENT, name: "John Deere 8R",
+      quantity: 1, unit: "units", location: "Main Barn",
+      unitValueCents: 12000000n, estValueCents: 12000000n,
+      acquiredAt: new Date("2022-03-01"), usefulLifeYears: 10, salvageCents: 2000000n,
+    },
+  });
+
+  // --- transactions (signed cents: income +, expense -) ---
+  const tx = [
+    { date: "2026-03-14", description: "Sold 5 head of cattle at Weatherford Cattle Auction", code: "livestock_sales_raised", amountCents: 673065n, relatedInventoryId: angus.id },
+    { date: "2026-03-13", description: "Bought 400 lbs of mixed cube feed for cattle from Tractor Supply", code: "feed", amountCents: -50000n, relatedLabel: "mixed cube feed" },
+    { date: "2023-11-09", description: "Diesel for tractors", code: "fuel", amountCents: -45000n },
+    { date: "2023-11-04", description: "Fall vaccinations", code: "veterinary", amountCents: -120000n },
+    { date: "2023-10-31", description: "Soybean harvest batch 1", code: "crop_sales", amountCents: 500000n },
+    { date: "2023-10-19", description: "Winter feed supply", code: "feed", amountCents: -250000n },
+    { date: "2023-10-14", description: "Sold 10 head of cattle", code: "livestock_sales_raised", amountCents: 1500000n },
+  ] as const;
+  for (const t of tx) {
+    await prisma.transaction.create({
+      data: {
+        farmId: farm.id, date: new Date(t.date), description: t.description,
+        accountId: await acct(t.code), amountCents: t.amountCents,
+        relatedInventoryId: "relatedInventoryId" in t ? t.relatedInventoryId : null,
+        relatedLabel: "relatedLabel" in t ? t.relatedLabel : null,
+      },
+    });
+  }
+
+  // --- liabilities ---
+  await prisma.liability.create({
+    data: {
+      farmId: farm.id, type: LiabilityType.EQUIPMENT_LOAN, name: "Tractor Loan", lender: "AgriBank",
+      originalCents: 18000000n, balanceCents: 15000000n, ratePct: 6.5,
+      nextPaymentAt: new Date("2026-11-30"), paymentCents: 250000n,
+    },
+  });
+  await prisma.liability.create({
+    data: {
+      farmId: farm.id, type: LiabilityType.OPERATING_LINE, name: "Operating Line 2023", lender: "Farm Credit",
+      originalCents: 10000000n, balanceCents: 7500000n, ratePct: 7.2,
+      nextPaymentAt: new Date("2027-01-14"), paymentCents: 150000n,
+    },
+  });
+
+  // --- leases ---
+  await prisma.lease.create({
+    data: {
+      farmId: farm.id, type: LeaseType.CASH_RENT, name: "River Bottom Fields", lessor: "Smith Family Trust",
+      acres: 350, termStart: new Date("2022-01-01"), termEnd: new Date("2025-12-31"), annualRentCents: 4500000n,
+    },
+  });
+  await prisma.lease.create({
+    data: {
+      farmId: farm.id, type: LeaseType.CROP_SHARE, name: "Hillside Pasture", lessor: "Neighbor Jones",
+      acres: 120, termStart: new Date("2023-01-01"), termEnd: new Date("2024-12-31"), annualRentCents: null,
+    },
+  });
+
+  // --- customers + invoices ---
+  const greenValley = await prisma.customer.create({ data: { farmId: farm.id, name: "Green Valley Restaurant" } });
+  const johnson = await prisma.customer.create({ data: { farmId: farm.id, name: "Johnson Family Farm" } });
+  await prisma.invoice.create({
+    data: {
+      farmId: farm.id, number: "INV-2024-002", customerId: greenValley.id, status: InvoiceStatus.SENT,
+      issuedAt: new Date("2024-12-14"), dueAt: new Date("2025-01-14"), totalCents: 48375n,
+    },
+  });
+  await prisma.invoice.create({
+    data: {
+      farmId: farm.id, number: "INV-2024-001", customerId: johnson.id, status: InvoiceStatus.PAID,
+      issuedAt: new Date("2024-11-30"), dueAt: new Date("2024-12-30"), totalCents: 6000000n,
+    },
+  });
+
+  // --- budgets (drive Dashboard Budget Health; 2024 so 2026 monthly view is empty) ---
+  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.MONTHLY, year: 2024, month: 1, accountCode: "feed", amountCents: 200000n } });
+  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.MONTHLY, year: 2024, month: 1, accountCode: "fuel", amountCents: 50000n } });
+  await prisma.budget.create({ data: { farmId: farm.id, period: BudgetPeriod.ANNUAL, year: 2024, month: null, accountCode: "fertilizer", amountCents: 1000000n } });
+
+  // --- financial goals ---
+  await prisma.financialGoal.create({
+    data: { farmId: farm.id, name: "New Combine Fund", kind: "savings", targetCents: 12000000n, currentCents: 1500000n, dueAt: new Date("2025-05-01"), note: "Saving for a used John Deere combine" },
+  });
+  await prisma.financialGoal.create({
+    data: { farmId: farm.id, name: "2024 Gross Revenue", kind: "income_target", targetCents: 15000000n, currentCents: 4500000n, dueAt: new Date("2024-12-01") },
+  });
+
+  console.log("Seeded demo farm:", farm.id);
+}
+
+main().then(() => prisma.$disconnect()).catch(async (e) => {
+  console.error(e); await prisma.$disconnect(); process.exit(1);
+});

@@ -1,0 +1,5 @@
+{
+  "extends": "@fl/config/tsconfig/base.json",
+  "compilerOptions": { "outDir": "dist", "module": "NodeNext", "moduleResolution": "NodeNext" },
+  "include": ["src"]
+}

@@ -1,0 +1,305 @@
+// Field & Ledger data model.
+// INVARIANTS baked in:
+//  1. Money is integer cents -> BigInt columns named *Cents.
+//  2. Audit trail (AuditLog) + period locking (AccountingPeriod).
+//  6. Categories map to Schedule F via Account.scheduleFCode.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Identity / multi-entity (Phase 8-ready) ----------
+model User {
+  id          String       @id @default(uuid())
+  email       String       @unique
+  name        String?
+  memberships Membership[]
+  createdAt   DateTime     @default(now())
+}
+
+model Farm {
+  id            String          @id @default(uuid())
+  name          String
+  memberships   Membership[]
+  accounts      Account[]
+  transactions  Transaction[]
+  inventory     InventoryItem[]
+  liabilities   Liability[]
+  leases        Lease[]
+  budgets       Budget[]
+  goals         FinancialGoal[]
+  invoices      Invoice[]
+  customers     Customer[]
+  plans         ProductionPlan[]
+  periods       AccountingPeriod[]
+  alerts        Alert[]
+  createdAt     DateTime        @default(now())
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model Membership {
+  id     String @id @default(uuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+  farm   Farm   @relation(fields: [farmId], references: [id])
+  farmId String
+  role   Role   @default(OWNER)
+  @@unique([userId, farmId])
+}
+
+// ---------- Chart of accounts (Schedule F spine) ----------
+enum AccountKind {
+  INCOME
+  EXPENSE
+}
+
+model Account {
+  id            String        @id @default(uuid())
+  farm          Farm          @relation(fields: [farmId], references: [id])
+  farmId        String
+  code          String        // e.g. "feed", "crop_sales"
+  label         String
+  kind          AccountKind
+  scheduleFCode String        // -> @fl/core SCHEDULE_F
+  transactions  Transaction[]
+  @@unique([farmId, code])
+}
+
+// ---------- Ledger ----------
+model Transaction {
+  id                String         @id @default(uuid())
+  farm              Farm           @relation(fields: [farmId], references: [id])
+  farmId            String
+  date              DateTime
+  description       String
+  account           Account        @relation(fields: [accountId], references: [id])
+  accountId         String
+  amountCents       BigInt         // signed: income +, expense -
+  vendor            String?
+  relatedInventory  InventoryItem? @relation(fields: [relatedInventoryId], references: [id])
+  relatedInventoryId String?
+  relatedLabel      String?        // free-text related item pending FK reconciliation (Phase 1 import)
+  source            String         @default("manual") // manual | import | ai_quicklog | receipt | auto_post
+  createdAt         DateTime       @default(now())
+  @@index([farmId, date])
+}
+
+// ---------- Revenue / invoicing ----------
+model Customer {
+  id        String    @id @default(uuid())
+  farm      Farm      @relation(fields: [farmId], references: [id])
+  farmId    String
+  name      String
+  email     String?
+  invoices  Invoice[]
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  VOID
+}
+
+model Invoice {
+  id          String            @id @default(uuid())
+  farm        Farm              @relation(fields: [farmId], references: [id])
+  farmId      String
+  number      String
+  customer    Customer          @relation(fields: [customerId], references: [id])
+  customerId  String
+  status      InvoiceStatus     @default(DRAFT)
+  issuedAt    DateTime
+  dueAt       DateTime
+  totalCents  BigInt
+  lineItems   InvoiceLineItem[]
+  @@unique([farmId, number])
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(uuid())
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
+  invoiceId   String
+  description String
+  quantity    Decimal @db.Decimal(14, 4)
+  unitCents   BigInt
+  amountCents BigInt
+}
+
+// ---------- Inventory / assets ----------
+enum InventoryCategory {
+  LIVESTOCK
+  FEED
+  CROPS
+  EQUIPMENT
+  SUPPLIES
+}
+
+enum BasisType {
+  RAISED
+  PURCHASED
+}
+
+model InventoryItem {
+  id              String            @id @default(uuid())
+  farm            Farm              @relation(fields: [farmId], references: [id])
+  farmId          String
+  category        InventoryCategory
+  name            String
+  quantity        Decimal           @db.Decimal(14, 4)
+  unit            String            // head, bales, bushels, units
+  location        String?
+  // valuation
+  unitValueCents  BigInt?           // manual/override per-unit value
+  marketSymbol    String?           // for mark-to-market (Phase 2)
+  estValueCents   BigInt?           // computed
+  // tax basis (Phase 2)
+  basisType       BasisType?
+  costBasisCents  BigInt?
+  acquiredAt      DateTime?
+  // depreciation (equipment)
+  usefulLifeYears Int?
+  salvageCents    BigInt?
+  transactions    Transaction[]
+  createdAt       DateTime          @default(now())
+}
+
+// ---------- Liabilities ----------
+enum LiabilityType {
+  EQUIPMENT_LOAN
+  OPERATING_LINE
+  MORTGAGE
+  OTHER
+}
+
+model Liability {
+  id              String        @id @default(uuid())
+  farm            Farm          @relation(fields: [farmId], references: [id])
+  farmId          String
+  type            LiabilityType
+  name            String
+  lender          String?
+  originalCents   BigInt
+  balanceCents    BigInt
+  ratePct         Decimal       @db.Decimal(6, 3)
+  nextPaymentAt   DateTime?
+  paymentCents    BigInt?
+  createdAt       DateTime      @default(now())
+}
+
+// ---------- Leases ----------
+enum LeaseType {
+  CASH_RENT
+  CROP_SHARE
+}
+
+model Lease {
+  id              String    @id @default(uuid())
+  farm            Farm      @relation(fields: [farmId], references: [id])
+  farmId          String
+  type            LeaseType
+  name            String
+  lessor          String?
+  acres           Decimal   @db.Decimal(12, 2)
+  termStart       DateTime
+  termEnd         DateTime
+  annualRentCents BigInt?   // null for crop share
+  createdAt       DateTime  @default(now())
+}
+
+// ---------- Budgets & goals ----------
+enum BudgetPeriod {
+  MONTHLY
+  ANNUAL
+}
+
+model Budget {
+  id          String       @id @default(uuid())
+  farm        Farm         @relation(fields: [farmId], references: [id])
+  farmId      String
+  period      BudgetPeriod
+  year        Int
+  month       Int?         // 1-12 when MONTHLY
+  accountCode String
+  amountCents BigInt
+  @@unique([farmId, period, year, month, accountCode])
+}
+
+model FinancialGoal {
+  id           String   @id @default(uuid())
+  farm         Farm     @relation(fields: [farmId], references: [id])
+  farmId       String
+  name         String
+  kind         String   // savings | income_target
+  targetCents  BigInt
+  currentCents BigInt   @default(0)
+  dueAt        DateTime?
+  note         String?
+}
+
+// ---------- Production planning ----------
+model ProductionPlan {
+  id        String   @id @default(uuid())
+  farm      Farm     @relation(fields: [farmId], references: [id])
+  farmId    String
+  title     String
+  kind      String   // planting | calving | harvest | breeding | other
+  startAt   DateTime
+  endAt     DateTime?
+  note      String?
+}
+
+// ---------- Audit + period lock (Invariant 2) ----------
+model AuditLog {
+  id        String   @id @default(uuid())
+  farmId    String
+  actorId   String?
+  action    String   // create | update | delete | lock | unlock | post
+  entity    String
+  entityId  String
+  before    Json?
+  after     Json?
+  at        DateTime @default(now())
+  @@index([farmId, entity, entityId])
+}
+
+model AccountingPeriod {
+  id       String   @id @default(uuid())
+  farm     Farm     @relation(fields: [farmId], references: [id])
+  farmId   String
+  year     Int
+  locked   Boolean  @default(false)
+  lockedAt DateTime?
+  @@unique([farmId, year])
+}
+
+// ---------- Alerts (Phase 4) ----------
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model Alert {
+  id         String        @id @default(uuid())
+  farm       Farm          @relation(fields: [farmId], references: [id])
+  farmId     String
+  type       String        // payment_due | invoice_overdue | lease_expiring | budget_over
+  severity   AlertSeverity @default(INFO)
+  message    String
+  dueAt      DateTime?
+  dismissed  Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+}
