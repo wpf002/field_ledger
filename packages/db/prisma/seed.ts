@@ -39,6 +39,7 @@ async function main() {
   const existing = await prisma.farm.findMany({ select: { id: true } });
   for (const { id } of existing) {
     await prisma.transaction.deleteMany({ where: { farmId: id } });
+    await prisma.importBatch.deleteMany({ where: { farmId: id } });
     await prisma.invoiceLineItem.deleteMany({ where: { invoice: { farmId: id } } });
     await prisma.invoice.deleteMany({ where: { farmId: id } });
     await prisma.customer.deleteMany({ where: { farmId: id } });

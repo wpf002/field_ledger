@@ -38,6 +38,7 @@ model Farm {
   plans         ProductionPlan[]
   periods       AccountingPeriod[]
   alerts        Alert[]
+  importBatches ImportBatch[]
   createdAt     DateTime        @default(now())
 }
 
@@ -91,8 +92,31 @@ model Transaction {
   relatedInventoryId String?
   relatedLabel      String?        // free-text related item pending FK reconciliation (Phase 1 import)
   source            String         @default("manual") // manual | import | ai_quicklog | receipt | auto_post
+  // import + reconciliation (Phase 1)
+  importBatch       ImportBatch?   @relation(fields: [importBatchId], references: [id])
+  importBatchId     String?
+  externalId        String?        // OFX FITID or bank-provided id; stable across re-imports
+  dedupeHash        String?        // hash(date, amountCents, normalized description)
+  reconciled        Boolean        @default(false)
+  reconciledAt      DateTime?
   createdAt         DateTime       @default(now())
   @@index([farmId, date])
+  @@index([farmId, dedupeHash])
+  @@index([farmId, externalId])
+}
+
+// ---------- Import batches (Phase 1: CSV/OFX) ----------
+model ImportBatch {
+  id             String        @id @default(uuid())
+  farm           Farm          @relation(fields: [farmId], references: [id])
+  farmId         String
+  source         String        // csv | ofx
+  filename       String?
+  rowCount       Int           @default(0)
+  importedCount  Int           @default(0)
+  duplicateCount Int           @default(0)
+  transactions   Transaction[]
+  createdAt      DateTime      @default(now())
 }
 
 // ---------- Revenue / invoicing ----------

@@ -12,9 +12,12 @@ import sensible from "@fastify/sensible";
 import { registerHealth } from "./routes/health.js";
 import { registerTransactions } from "./routes/transactions.js";
 import { registerFarm } from "./routes/farm.js";
+import { registerImport } from "./routes/import.js";
+import { registerReconcile } from "./routes/reconcile.js";
 import { bigintReplySerializer } from "./plugins/bigint-serializer.js";
 
-const app = Fastify({ logger: true });
+// 25 MB body limit so multi-year CSV/OFX statements parse without truncation.
+const app = Fastify({ logger: true, bodyLimit: 25 * 1024 * 1024 });
 
 // Invariant 1: BigInt money must serialize as strings, not throw. Applies to
 // every route (setReplySerializer covers schemaless routes too).
@@ -26,6 +29,8 @@ await app.register(sensible);
 await registerHealth(app);
 await registerFarm(app);
 await registerTransactions(app);
+await registerImport(app);
+await registerReconcile(app);
 
 const port = Number(process.env.API_PORT ?? 4000);
 const host = process.env.API_HOST ?? "0.0.0.0";

@@ -4,9 +4,10 @@ import { Card } from "@/components/ui/card";
 import { CategoryPill } from "@/components/ui/category-pill";
 import { Money } from "@/components/ui/money";
 import { PrimaryButton } from "@/components/ui/button";
+import Link from "next/link";
 import { toCents } from "@fl/core";
 import { fmtDate } from "@/lib/format";
-import { Plus, Search, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, X, Upload, Link2, CheckCircle2 } from "lucide-react";
 
 export type Account = { id: string; code: string; label: string; kind: "INCOME" | "EXPENSE" };
 export type Txn = {
@@ -17,6 +18,7 @@ export type Txn = {
   relatedLabel: string | null;
   relatedInventory: { name: string } | null;
   account: { label: string; kind: "INCOME" | "EXPENSE" };
+  reconciled?: boolean;
 };
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -51,7 +53,11 @@ export function TransactionsClient({ farmId, initial, accounts }: { farmId: stri
           <h2 className="font-serif text-4xl font-bold text-primary">Transactions</h2>
           <p className="mt-1 text-muted">Track your farm&rsquo;s income and expenses.</p>
         </div>
-        <PrimaryButton onClick={() => setAdding(true)}><Plus size={16} /> Add Transaction</PrimaryButton>
+        <div className="flex items-center gap-2">
+          <Link href="/transactions/import" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><Upload size={15} /> Import</Link>
+          <Link href="/transactions/reconcile" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><Link2 size={15} /> Reconcile</Link>
+          <PrimaryButton onClick={() => setAdding(true)}><Plus size={16} /> Add Transaction</PrimaryButton>
+        </div>
       </div>
 
       <Card className="overflow-hidden">
@@ -79,7 +85,12 @@ export function TransactionsClient({ farmId, initial, accounts }: { farmId: stri
                   <td className="px-5 py-3.5 text-ink">{t.description}</td>
                   <td className="px-5 py-3.5">{related && <span className="rounded-pill bg-mint px-3 py-1 text-xs text-positive">{related}</span>}</td>
                   <td className="px-5 py-3.5"><CategoryPill>{t.account.label}</CategoryPill></td>
-                  <td className="px-5 py-3.5 text-right"><Money cents={t.amountCents} sign /></td>
+                  <td className="px-5 py-3.5 text-right">
+                    <span className="inline-flex items-center gap-1.5">
+                      {t.reconciled && <CheckCircle2 size={13} className="text-positive" aria-label="Reconciled" />}
+                      <Money cents={t.amountCents} sign />
+                    </span>
+                  </td>
                   <td className="px-5 py-3.5">
                     <div className="flex justify-end gap-3 text-muted">
                       <button className="hover:text-ink" title="Edit"><Pencil size={16} /></button>

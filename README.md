@@ -48,15 +48,28 @@ Env loading: the API loads the root `.env` (via `dotenv`, resolved from
 `apps/api/src`); the web app loads `apps/web/.env.local` (Next.js convention).
 If you free up port 5432, change `:5544` back to `:5432` in both env files.
 
-## Status — Phase 0 complete
-- All 10 pages render to match the original screenshots, driven by seeded demo
-  data (integer cents end to end). Dashboard KPIs, Insights, Inventory,
-  Liabilities, Leases, Revenue, Budgets, Planning, and AI Assistant are built;
-  the `$….325` float artifacts are gone (Insights shows clean cents).
-- **Transactions** is wired to the **live Fastify API** end to end: list (GET),
-  add (POST), delete (DELETE), each guarded by period-lock + audit-log
-  (Invariant 2). Other pages read Prisma directly in server components.
-- `packages/core` money math is unit-tested; `pnpm -r typecheck` is clean.
+## Status
+
+**Phase 0 — complete.** All 10 pages render to match the original screenshots,
+driven by seeded demo data (integer cents end to end). The `$….325` float
+artifacts are gone. **Transactions** is wired to the **live Fastify API** (GET/
+POST/DELETE) with period-lock + audit-log guards (Invariant 2); other pages read
+Prisma directly in server components.
+
+**Phase 1 — complete.** Ledger correctness, tax spine, and import:
+- **CSV/OFX/QFX import** (`/transactions/import`): browser-side parsing →
+  column mapping → preview with per-row Schedule F category inference, dedupe
+  flagging, and editable categories → commit. Import is idempotent, skips
+  duplicates, and refuses rows in locked periods. Every row is tax-mapped
+  (catch-all fallback ensures nothing is unmapped — Invariant 6).
+- **Bank reconciliation** (`/transactions/reconcile`): statement import →
+  amount+date windowed matching against unreconciled ledger → confirm → rows
+  marked reconciled (audited). A green check marks reconciled rows in the ledger.
+- Money was integer cents from day one, so there is no float data to migrate —
+  Invariant 1 already holds and derived totals reconcile.
+
+`packages/core` money + import logic is unit-tested (15 tests); `pnpm -r
+typecheck` is clean across all packages.
 
 ## Invariants (do not violate — full list in docs/BUILD-SPEC.md)
 1. Money is integer cents (BigInt). Format only at the display edge.
