@@ -15,4 +15,6 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
+// Exclude the API proxy (it does its own auth and must return JSON, not a login
+// redirect) and public/PWA assets.
+export const config = { matcher: ["/((?!api|_next/static|_next/image|favicon.ico|sw.js|offline.html|manifest.webmanifest|icon).*)"] };
