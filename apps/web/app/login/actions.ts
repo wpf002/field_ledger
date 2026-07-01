@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma, verifyPassword } from "@fl/db";
 import { signToken, TOKEN_COOKIE, FARM_COOKIE } from "@/lib/session";
 
-const cookieOpts = { path: "/", sameSite: "lax" as const, maxAge: 30 * 86_400 };
+const cookieOpts = { path: "/", sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", maxAge: 30 * 86_400 };
 // The session token is httpOnly now — it's never read by client JS. API calls go
 // same-origin through the Next proxy, so the browser attaches it automatically.
 const tokenCookieOpts = { ...cookieOpts, httpOnly: true };

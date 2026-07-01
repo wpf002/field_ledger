@@ -60,6 +60,7 @@ await registerReports(app);
 await registerInvoices(app);
 await registerAssistant(app);
 
-const port = Number(process.env.API_PORT ?? 4000);
+// Railway (and most PaaS) inject the port to bind on via PORT.
+const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
 const host = process.env.API_HOST ?? "0.0.0.0";
 app.listen({ port, host }).then(() => app.log.info(`API on ${host}:${port}`));
