@@ -40,7 +40,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-6 text-sm">
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted">Bill to</p>
             <p className="mt-1 font-medium text-ink">{inv.customer.name}</p>

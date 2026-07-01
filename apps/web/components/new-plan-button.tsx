@@ -58,7 +58,7 @@ export function NewPlanButton({ farmId }: { farmId: string }) {
                     {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
                   </select>
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="block">
                     <span className="mb-1 block text-xs uppercase tracking-wider text-muted">Start</span>
                     <input type="date" value={startAt} onChange={(e) => setStartAt(e.target.value)} className="input" />

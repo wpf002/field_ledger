@@ -37,7 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               farms={session.memberships.map((m) => ({ id: m.farmId, name: m.farm.name }))}
               currentFarmId={session.farm.id}
             />
-            <main className="flex-1 px-10 py-8">{children}</main>
+            <main className="min-w-0 flex-1 px-4 pb-8 pt-20 sm:px-6 lg:px-10 lg:py-8">{children}</main>
           </div>
         ) : (
           <main>{children}</main>

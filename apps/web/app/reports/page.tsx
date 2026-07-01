@@ -51,7 +51,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ye
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {/* P&L */}
         <Card className="p-6">
           <SectionHeading icon={<FileText size={18} className="text-primary" />} title="Profit & Loss" action={<Dl farmId={farmId} type="pnl" year={year} />} />
@@ -85,7 +85,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ye
         {/* Cash flow */}
         <Card className="p-6">
           <SectionHeading icon={<TrendingUp size={18} className="text-primary" />} title="Cash Flow Statement" action={<Dl farmId={farmId} type="cash-flow" year={year} />} />
-          <table className="mt-4 w-full text-sm">
+          <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[480px] text-sm">
             <thead><tr className="text-left text-xs uppercase tracking-wider text-muted"><th className="py-1.5">Month</th><th className="py-1.5 text-right">In</th><th className="py-1.5 text-right">Out</th><th className="py-1.5 text-right">Net</th></tr></thead>
             <tbody>
               {cashFlow.months.filter((m) => m.inflowCents || m.outflowCents).map((m) => (
@@ -103,7 +103,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ye
                 <td className="py-2 text-right"><Money cents={cashFlow.netCents} /></td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
         </Card>
 
         {/* Enterprise profitability */}

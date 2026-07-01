@@ -14,12 +14,12 @@ export function StatCard({
 }: { label: string; value: React.ReactNode; sub?: string; icon?: React.ReactNode; variant?: Variant }) {
   const onFill = variant === "primary" || variant === "brown";
   return (
-    <div className={clsx("rounded-card p-6 shadow-card", surfaces[variant])}>
-      <div className="flex items-center justify-between">
+    <div className={clsx("rounded-card p-5 shadow-card sm:p-6", surfaces[variant])}>
+      <div className="flex items-center justify-between gap-2">
         <span className={clsx("uppercase tracking-wider text-xs", onFill ? "text-white/80" : "text-muted")}>{label}</span>
-        {icon}
+        <span className="shrink-0">{icon}</span>
       </div>
-      <div className="mt-3 font-serif text-3xl font-bold">{value}</div>
+      <div className="mt-3 font-serif text-xl font-bold leading-tight tabular-nums sm:text-3xl">{value}</div>
       {sub && <p className={clsx("mt-1 text-sm", onFill ? "text-white/75" : "text-muted")}>{sub}</p>}
     </div>
   );

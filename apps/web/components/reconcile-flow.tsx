@@ -91,7 +91,7 @@ export function ReconcileFlow({ farmId }: { farmId: string }) {
               <PrimaryButton onClick={commit} disabled={busy || checkedCount === 0}>{busy ? "Saving…" : `Mark ${checkedCount} reconciled`}</PrimaryButton>
             </div>
             {data.matches.length === 0 ? <p className="px-5 py-8 text-center text-sm text-muted">No statement lines matched the ledger.</p> : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
                 <thead><tr className="text-left text-xs uppercase tracking-wider text-muted">
                   <th className="px-5 py-3"></th><th className="px-5 py-3">Statement line</th><th className="px-5 py-3">Ledger transaction</th><th className="px-5 py-3 text-right">Amount</th>
                 </tr></thead>
@@ -105,11 +105,11 @@ export function ReconcileFlow({ farmId }: { farmId: string }) {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </Card>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <Card className="p-5">
               <h4 className="font-serif text-lg font-semibold text-ink">Unmatched on statement ({data.unmatchedStatement.length})</h4>
               <p className="mb-3 text-xs text-muted">Lines with no ledger match — likely missing transactions to import.</p>

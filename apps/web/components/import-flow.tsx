@@ -117,7 +117,7 @@ export function ImportFlow({ farmId }: { farmId: string }) {
         <Card className="p-6">
           <h3 className="flex items-center gap-2 font-serif text-xl font-semibold text-ink"><FileSpreadsheet size={18} /> Map columns</h3>
           <p className="mt-1 text-sm text-muted">{filename} · {table.rows.length} rows</p>
-          <div className="mt-5 grid grid-cols-3 gap-4">
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {(["date", "description", "amount"] as const).map((field) => (
               <label key={field} className="block">
                 <span className="mb-1 block text-xs uppercase tracking-wider text-muted">{field}</span>
@@ -144,7 +144,7 @@ export function ImportFlow({ farmId }: { farmId: string }) {
             </div>
             <PrimaryButton onClick={commit} disabled={busy || selectedCount === 0}>{busy ? "Importing…" : `Import ${selectedCount}`}</PrimaryButton>
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-sm">
             <thead><tr className="text-left text-xs uppercase tracking-wider text-muted">
               <th className="px-5 py-3"></th><th className="px-5 py-3">Date</th><th className="px-5 py-3">Description</th>
               <th className="px-5 py-3">Category (Schedule F)</th><th className="px-5 py-3 text-right">Amount</th><th className="px-5 py-3"></th>
@@ -171,7 +171,7 @@ export function ImportFlow({ farmId }: { farmId: string }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </Card>
       )}
 

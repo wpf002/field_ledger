@@ -52,13 +52,13 @@ export default async function Dashboard() {
         action={<Link href="/reports" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><FileText size={15} /> Reports</Link>}
       />
 
-      <div className="grid grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard label="Total Income" value={<Money cents={income} />} icon={<TrendingUp className="text-positive" size={18} />} />
         <StatCard label="Total Expenses" value={<Money cents={expenses} />} icon={<TrendingDown className="text-negative" size={18} />} />
         <StatCard label="Net Profit" value={<Money cents={netProfit} />} icon={<DollarSign className="text-positive" size={18} />} />
         <StatCard label="Total Inventory Value" value={<Money cents={inventoryValue} />} sub={`Across ${valued.length} active lots/items`} variant="primary" icon={<Wallet className="text-white/80" size={18} />} />
       </div>
-      <div className="grid grid-cols-4 gap-5 mt-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mt-5">
         <StatCard label="Total Liabilities" value={<Money cents={totalLiabilities} />} icon={<CreditCard className="text-negative" size={18} />} />
       </div>
 
@@ -66,7 +66,7 @@ export default async function Dashboard() {
         <HeroBand title="Estimated Net Worth" subtitle="Calculated based on tracked inventory assets minus outstanding liabilities." value={<Money cents={netWorth} className="text-white" />} />
       </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-6">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* left column */}
         <div className="col-span-2 space-y-6">
           <Card className="p-6">

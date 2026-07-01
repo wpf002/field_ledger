@@ -115,8 +115,8 @@ export function AssistantView({ farmId }: { farmId: string }) {
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
-        <div className="inline-flex gap-2">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="inline-flex flex-wrap gap-2">
           {TABS.map(({ value, label, icon: Icon }) => (
             <button key={value} onClick={() => { setTab(value); setDraft(null); setPosted(null); setDraftError(null); }} className={clsx("flex items-center gap-2 rounded-pill px-4 py-2 text-sm transition", tab === value ? "bg-surface text-ink shadow-card" : "text-muted hover:bg-tag/40")}>
               <Icon size={15} /> {label}
@@ -196,7 +196,7 @@ function DraftCard({ draft, accounts, onChange, onConfirm, onCancel, busy }: { d
   return (
     <div className="mt-4 rounded-card border border-border bg-surface-sunken p-4">
       <p className="mb-3 text-xs uppercase tracking-wider text-muted">Draft — review before posting</p>
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
         <label className="block"><span className="mb-1 block text-xs text-muted">Description</span><input value={draft.description} onChange={(e) => onChange({ description: e.target.value })} className="input" /></label>
         <label className="block"><span className="mb-1 block text-xs text-muted">Date</span><input type="date" value={draft.date} onChange={(e) => onChange({ date: e.target.value })} className="input" /></label>
         <label className="block"><span className="mb-1 block text-xs text-muted">Amount ($, {draft.kind.toLowerCase()})</span>

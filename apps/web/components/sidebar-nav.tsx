@@ -4,9 +4,9 @@ import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
   LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText,
-  PieChart, TrendingUp, Calendar, MessageSquare, UserCircle2, LogOut, Check, ChevronsUpDown, Eye,
+  PieChart, TrendingUp, Calendar, MessageSquare, UserCircle2, LogOut, Check, ChevronsUpDown, Eye, Menu, X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertsBell } from "@/components/alerts-bell";
 import { logout, switchFarm } from "@/app/login/actions";
 
@@ -29,8 +29,12 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const current = farms.find((f) => f.id === currentFarmId);
   const viewer = role === "VIEWER";
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => { setMobileOpen(false); }, [path]);
 
   async function pick(id: string) {
     setOpen(false);
@@ -40,7 +44,22 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
   }
 
   return (
-    <aside className="w-[280px] shrink-0 border-r border-border bg-bg flex flex-col">
+    <>
+    {/* Mobile top bar — hidden on lg+ where the sidebar is always visible. */}
+    <header className="lg:hidden fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-bg px-4">
+      <button onClick={() => setMobileOpen(true)} aria-label="Open menu" className="text-ink"><Menu size={22} /></button>
+      <h1 className="font-serif text-xl font-bold text-primary">Field &amp; Ledger</h1>
+      <AlertsBell />
+    </header>
+
+    {/* Backdrop behind the drawer on mobile. */}
+    {mobileOpen && <div className="lg:hidden fixed inset-0 z-40 bg-black/30" onClick={() => setMobileOpen(false)} />}
+
+    <aside className={clsx(
+      "w-[280px] shrink-0 border-r border-border bg-bg flex flex-col",
+      "fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0",
+      mobileOpen ? "translate-x-0" : "-translate-x-full",
+    )}>
       <div className="flex items-start justify-between px-6 py-6 border-b border-border">
         <div>
           <h1 className="font-serif text-2xl font-bold text-primary">Field &amp; Ledger</h1>
@@ -60,7 +79,10 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
             )}
           </div>
         </div>
-        <AlertsBell />
+        <div className="flex items-center gap-2">
+          <span className="hidden lg:block"><AlertsBell /></span>
+          <button onClick={() => setMobileOpen(false)} aria-label="Close menu" className="lg:hidden text-muted hover:text-ink"><X size={20} /></button>
+        </div>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
@@ -88,5 +110,6 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
         </div>
       </div>
     </aside>
+    </>
   );
 }

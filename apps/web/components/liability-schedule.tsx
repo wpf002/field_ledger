@@ -63,8 +63,8 @@ export function LiabilitySchedule({ farmId, id, name, nextPaymentAt }: { farmId:
               </div>
               {posted && <p className="mt-2 text-sm text-positive">{posted}</p>}
 
-              <div className="mt-4 max-h-72 overflow-y-auto rounded-btn border border-border">
-                <table className="w-full text-sm">
+              <div className="mt-4 max-h-72 overflow-auto rounded-btn border border-border">
+                <table className="w-full min-w-[520px] text-sm">
                   <thead className="sticky top-0 bg-surface"><tr className="text-left text-xs uppercase tracking-wider text-muted">
                     <th className="px-3 py-2">#</th><th className="px-3 py-2">Due</th><th className="px-3 py-2 text-right">Payment</th><th className="px-3 py-2 text-right">Interest</th><th className="px-3 py-2 text-right">Principal</th><th className="px-3 py-2 text-right">Balance</th>
                   </tr></thead>

@@ -32,7 +32,7 @@ export default async function BudgetsPage() {
     <>
       <PageHeader title="Budgets & Goals" subtitle="Plan your expenses and track financial targets." />
 
-      <div className="grid grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
         {/* Expense budgets */}
         <div>
           <div className="mb-4 flex items-center justify-between">

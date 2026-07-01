@@ -11,7 +11,7 @@ export default async function AccountPage() {
   return (
     <>
       <PageHeader title="My Account" subtitle="Profile, farm, and preferences." />
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <Card className="p-6">
           <SectionHeading icon={<Building2 size={18} className="text-primary" />} title="Farm" />
           <div className="mt-4 space-y-1 text-sm">

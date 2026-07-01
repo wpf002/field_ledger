@@ -81,7 +81,7 @@ export default async function RevenuePage() {
     <>
       <PageHeader title="Revenue Management" subtitle="Track income, manage invoices, and maintain customer relationships." />
 
-      <div className="grid grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard label="Total Revenue" value={<Money cents={totalRevenue} />} sub="All recorded income" icon={<DollarSign size={18} className="text-muted" />} />
         <StatCard label="Invoiced" value={<Money cents={invoiced} />} sub={`${invoices.length} total invoices`} icon={<FileText size={18} className="text-muted" />} />
         <StatCard label="Paid" value={<Money cents={paid} />} sub={`${paidCount} paid invoices`} variant="mint" icon={<TrendingUp size={18} className="text-positive" />} />

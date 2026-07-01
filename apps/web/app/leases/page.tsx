@@ -27,12 +27,12 @@ export default async function LeasesPage() {
         action={<PrimaryButton><Plus size={16} /> Add Lease</PrimaryButton>}
       />
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <StatCard label="Total Leased Acreage" value={<span>{totalAcres.toLocaleString()} <span className="text-2xl font-normal">ac</span></span>} sub={`Across ${leases.length} agreements`} variant="brown" />
         <StatCard label="Total Annual Rent" value={<Money cents={totalAnnualRent} />} sub="Base cash rent costs" />
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-5">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
         {leases.map((l) => {
           const expired = l.termEnd < new Date();
           return (

@@ -60,7 +60,8 @@ export function PlanningView({ plans }: { plans: PlanLite[] }) {
             <button onClick={() => setCursor(new Date(year, month + 1, 1))} className="rounded-btn border border-border p-2 text-muted hover:bg-tag/40"><ChevronRight size={16} /></button>
           </div>
 
-          <div className="grid grid-cols-7 border-l border-t border-border">
+          <div className="overflow-x-auto">
+          <div className="grid min-w-[640px] grid-cols-7 border-l border-t border-border">
             {DOW.map((d) => (
               <div key={d} className="border-b border-r border-border px-3 py-2 text-center text-xs text-muted">{d}</div>
             ))}
@@ -77,6 +78,7 @@ export function PlanningView({ plans }: { plans: PlanLite[] }) {
                 </div>
               );
             })}
+          </div>
           </div>
         </Card>
       ) : (

@@ -48,13 +48,13 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-serif text-4xl font-bold text-primary">Transactions</h2>
+          <h2 className="font-serif text-3xl font-bold text-primary sm:text-4xl">Transactions</h2>
           <p className="mt-1 text-muted">Track your farm&rsquo;s income and expenses.</p>
         </div>
         {canWrite ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link href="/transactions/import" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><Upload size={15} /> Import</Link>
             <Link href="/transactions/reconcile" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><Link2 size={15} /> Reconcile</Link>
             <PrimaryButton onClick={() => setAdding(true)}><Plus size={16} /> Add Transaction</PrimaryButton>
@@ -69,7 +69,8 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
           <Search size={18} className="text-muted" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-muted" placeholder="Search transactions..." />
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[680px] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wider text-muted">
               <th className="px-5 py-3 font-medium">Date</th>
@@ -111,6 +112,7 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
             )}
           </tbody>
         </table>
+        </div>
       </Card>
 
       {adding && <AddModal farmId={farmId} accounts={accounts} onClose={() => setAdding(false)} onAdded={() => { setAdding(false); refresh(); }} />}
@@ -171,7 +173,7 @@ function AddModal({ farmId, accounts, onClose, onAdded }: { farmId: string; acco
             </div>
 
             <Field label="Description"><input value={description} onChange={(e) => setDescription(e.target.value)} className="input" placeholder="e.g. Diesel for tractors" /></Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Amount ($)"><input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="input" placeholder="0.00" /></Field>
               <Field label="Date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" /></Field>
             </div>

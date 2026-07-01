@@ -65,7 +65,7 @@ export default async function InsightsPage() {
 
       <Card className="p-6">
         <SectionHeading icon={<CalendarRange size={18} className="text-primary" />} title="90-Day Cashflow Projection" />
-        <div className="mt-6 grid grid-cols-3 gap-6 text-center">
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-center">
           <div>
             <p className="text-sm text-muted">Projected Income</p>
             <p className="mt-1 font-serif text-3xl font-bold text-positive"><Money cents={projectedIncome} /></p>
@@ -83,7 +83,7 @@ export default async function InsightsPage() {
         <p className="mt-3 text-center text-xs text-muted">* Projected months (lighter bars) based on historical averages and upcoming obligations.</p>
       </Card>
 
-      <div className="mt-6 grid grid-cols-2 gap-6">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
         <Card className="p-6">
           <SectionHeading
             icon={<CircleCheck size={18} className="text-positive" />}

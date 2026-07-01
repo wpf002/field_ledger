@@ -42,12 +42,12 @@ export default async function LiabilitiesPage() {
         action={<PrimaryButton><Plus size={16} /> Add Liability</PrimaryButton>}
       />
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <StatCard label="Total Outstanding Debt" value={<Money cents={totalDebt} className="text-white" />} sub={`Across ${liabilities.length} active liabilities`} variant="brown" />
         <StatCard label="Est. Monthly Interest" value={<Money cents={-roundCentsToDollar(monthlyInterest)} />} sub="Projected cost of carry" />
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-5">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
         {liabilities.map((l) => {
           const pctPaid = Math.round(Number(l.originalCents - l.balanceCents) * 100 / Number(l.originalCents));
           return (
@@ -66,7 +66,7 @@ export default async function LiabilitiesPage() {
                 <span>Original: <Money cents={l.originalCents} /></span>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-btn bg-surface-sunken px-4 py-3">
                   <p className="text-xs text-muted">Interest Rate</p>
                   <p className="mt-0.5 font-medium text-ink">{Number(l.ratePct)}%</p>
