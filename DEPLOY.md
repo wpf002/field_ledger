@@ -25,15 +25,22 @@ The browser only ever talks to the **web** origin; `next.config` rewrites
 > Dockerfile takes `API_URL` as a build `ARG` (default = the Railway API URL).
 > Change that ARG default or pass `--build-arg API_URL=...` if the API URL moves.
 
-## Database migrations & seed
-Run from a machine that can reach the DB, using the Postgres **public** URL
-(the internal `*.railway.internal` host isn't reachable off-platform):
+## Database migrations
+**Migrations run automatically on every deploy** — the API container's
+entrypoint (`apps/api/docker-start.sh`) runs `prisma migrate deploy` before the
+server accepts traffic. It's idempotent and takes a Postgres advisory lock, and
+if a migration fails the container exits so Railway keeps the previous
+deployment serving. So a normal schema change is just: commit the new migration
+and push.
+
+### Seeding (one-off / reset)
+The seed is **not** automatic. Run it from a machine that can reach the DB via
+the Postgres **public** URL (the internal `*.railway.internal` host isn't
+reachable off-platform):
 
 ```bash
 railway run --service Postgres bash -c \
-  'DATABASE_URL="$DATABASE_PUBLIC_URL" pnpm --filter @fl/db exec prisma migrate deploy'
-railway run --service Postgres bash -c \
-  'DATABASE_URL="$DATABASE_PUBLIC_URL" pnpm db:seed'   # demo data
+  'DATABASE_URL="$DATABASE_PUBLIC_URL" pnpm db:seed'
 ```
 
 ## Manual deploy (fallback)

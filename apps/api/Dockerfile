@@ -23,4 +23,5 @@ RUN pnpm --filter @fl/db exec prisma generate
 
 ENV NODE_ENV=production
 ENV API_HOST=0.0.0.0
-CMD ["pnpm", "--filter", "@fl/api", "exec", "tsx", "src/index.ts"]
+# Entrypoint applies pending migrations, then starts the server.
+CMD ["sh", "apps/api/docker-start.sh"]
