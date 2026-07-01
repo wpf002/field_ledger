@@ -7,8 +7,11 @@ import type { NextRequest } from "next/server";
 export function middleware(req: NextRequest) {
   const hasToken = req.cookies.has("fl_token");
   const { pathname } = req.nextUrl;
+  // Only guard the absence case here. We deliberately do NOT bounce /login → /
+  // on mere cookie presence: the edge runtime can't verify the token, and a
+  // stale-but-present cookie would loop with the data layer's redirect back to
+  // /login (which then re-issues a valid cookie on the next sign-in).
   if (!hasToken && pathname !== "/login") return NextResponse.redirect(new URL("/login", req.url));
-  if (hasToken && pathname === "/login") return NextResponse.redirect(new URL("/", req.url));
   return NextResponse.next();
 }
 
