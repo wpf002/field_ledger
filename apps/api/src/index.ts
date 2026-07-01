@@ -1,11 +1,4 @@
-import { config as loadEnv } from "dotenv";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
-
-// Load the single root .env regardless of where the process is launched from.
-const here = dirname(fileURLToPath(import.meta.url));
-loadEnv({ path: resolve(here, "../../../.env") });
-
+import "./env.js"; // must be first — loads root .env before env-reading modules
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import sensible from "@fastify/sensible";
@@ -22,6 +15,7 @@ import { registerReports } from "./routes/reports.js";
 import { registerInvoices } from "./routes/invoices.js";
 import { registerAssistant } from "./routes/assistant.js";
 import { bigintReplySerializer } from "./plugins/bigint-serializer.js";
+import { verifyToken, bearer, roleForFarm } from "./lib/session.js";
 
 // 25 MB body limit so multi-year CSV/OFX statements parse without truncation.
 const app = Fastify({ logger: true, bodyLimit: 25 * 1024 * 1024 });
@@ -32,6 +26,22 @@ app.setReplySerializer(bigintReplySerializer);
 
 await app.register(cors, { origin: process.env.WEB_ORIGIN ?? true });
 await app.register(sensible);
+
+// Phase 8: role-gate writes. Reads (GET) and read-only POSTs (chat, import
+// preview, reconcile match) are open; every mutating request to a farm requires
+// a valid session token whose membership on that farm is not VIEWER.
+const READ_ONLY_POST = ["/assistant/chat", "/assistant/quick-log", "/assistant/receipt", "/import/preview", "/reconcile/match"];
+app.addHook("preHandler", async (req, reply) => {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return;
+  if (req.method === "POST" && READ_ONLY_POST.some((s) => req.url.includes(s))) return;
+  const farmId = req.url.match(/\/farms\/([^/?]+)/)?.[1];
+  if (!farmId) return; // non-farm-scoped mutation
+  const v = verifyToken(bearer(req.headers.authorization));
+  if (!v) return reply.code(401).send({ message: "Sign in required." });
+  const role = await roleForFarm(v.userId, farmId);
+  if (!role) return reply.code(403).send({ message: "You don't have access to this farm." });
+  if (role === "VIEWER") return reply.code(403).send({ message: "Viewers have read-only access." });
+});
 
 await registerHealth(app);
 await registerFarm(app);

@@ -1,5 +1,5 @@
 import { TransactionsClient, type Txn, type Account } from "@/components/transactions-client";
-import { getDemoFarmId } from "@/lib/data";
+import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 
 // Phase 0 reference page: data flows through the live Fastify API end to end.
 const API = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -14,6 +14,7 @@ export default async function TransactionsPage() {
   ]);
   const initial: Txn[] = await txnsRes.json();
   const accounts: Account[] = await acctsRes.json();
+  const writable = canWrite(await getCurrentRole());
 
-  return <TransactionsClient farmId={farmId} initial={initial} accounts={accounts} />;
+  return <TransactionsClient farmId={farmId} initial={initial} accounts={accounts} canWrite={writable} />;
 }

@@ -1,15 +1,24 @@
-import { prisma } from "@fl/db";
+import { redirect } from "next/navigation";
+import { getCurrentFarm } from "./session";
 
 /**
- * Server-side read layer for the web app. Phase 0 renders every page from the
- * seeded demo farm. Money stays integer cents end to end; pages format only at
- * the display edge via <Money/>. (Transactions is the exception — it goes
- * through the live Fastify API to prove the API path end to end.)
+ * Server-side read layer. `getDemoFarm`/`getDemoFarmId` now resolve the current
+ * user's selected farm from the session (Phase 8). Unauthenticated requests
+ * redirect to /login (the name is kept so pages don't need to change).
  */
-export function getDemoFarm() {
-  return prisma.farm.findFirstOrThrow();
+export async function getDemoFarm() {
+  const c = await getCurrentFarm();
+  if (!c) redirect("/login");
+  return c.farm;
 }
 
 export async function getDemoFarmId() {
   return (await getDemoFarm()).id;
 }
+
+/** Current membership role for the selected farm (OWNER/ADMIN/MEMBER/VIEWER). */
+export async function getCurrentRole() {
+  const c = await getCurrentFarm();
+  return c?.role ?? "VIEWER";
+}
+export const canWrite = (role: string) => role !== "VIEWER";

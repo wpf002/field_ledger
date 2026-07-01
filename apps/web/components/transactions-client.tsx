@@ -23,7 +23,7 @@ export type Txn = {
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-export function TransactionsClient({ farmId, initial, accounts }: { farmId: string; initial: Txn[]; accounts: Account[] }) {
+export function TransactionsClient({ farmId, initial, accounts, canWrite = true }: { farmId: string; initial: Txn[]; accounts: Account[]; canWrite?: boolean }) {
   const [rows, setRows] = useState<Txn[]>(initial);
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
@@ -53,11 +53,15 @@ export function TransactionsClient({ farmId, initial, accounts }: { farmId: stri
           <h2 className="font-serif text-4xl font-bold text-primary">Transactions</h2>
           <p className="mt-1 text-muted">Track your farm&rsquo;s income and expenses.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/transactions/import" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><Upload size={15} /> Import</Link>
-          <Link href="/transactions/reconcile" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><Link2 size={15} /> Reconcile</Link>
-          <PrimaryButton onClick={() => setAdding(true)}><Plus size={16} /> Add Transaction</PrimaryButton>
-        </div>
+        {canWrite ? (
+          <div className="flex items-center gap-2">
+            <Link href="/transactions/import" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><Upload size={15} /> Import</Link>
+            <Link href="/transactions/reconcile" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><Link2 size={15} /> Reconcile</Link>
+            <PrimaryButton onClick={() => setAdding(true)}><Plus size={16} /> Add Transaction</PrimaryButton>
+          </div>
+        ) : (
+          <span className="rounded-pill bg-tag px-3 py-1.5 text-sm text-muted">Read-only (Viewer)</span>
+        )}
       </div>
 
       <Card className="overflow-hidden">
@@ -92,10 +96,12 @@ export function TransactionsClient({ farmId, initial, accounts }: { farmId: stri
                     </span>
                   </td>
                   <td className="px-5 py-3.5">
-                    <div className="flex justify-end gap-3 text-muted">
-                      <button className="hover:text-ink" title="Edit"><Pencil size={16} /></button>
-                      <button onClick={() => remove(t.id)} className="hover:text-negative" title="Delete"><Trash2 size={16} /></button>
-                    </div>
+                    {canWrite && (
+                      <div className="flex justify-end gap-3 text-muted">
+                        <button className="hover:text-ink" title="Edit"><Pencil size={16} /></button>
+                        <button onClick={() => remove(t.id)} className="hover:text-negative" title="Delete"><Trash2 size={16} /></button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

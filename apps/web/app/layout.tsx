@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { SidebarNav } from "@/components/sidebar-nav";
+import { FetchAuth } from "@/components/fetch-auth";
+import { getCurrentFarm } from "@/lib/session";
 
 const serif = Fraunces({ subsets: ["latin"], variable: "--font-serif", weight: ["500", "600", "700"] });
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -11,14 +13,25 @@ export const metadata: Metadata = {
   description: "Accounting and financial planning for farmers and ranchers.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await getCurrentFarm();
   return (
     <html lang="en" className={`${serif.variable} ${sans.variable}`}>
       <body className="font-sans">
-        <div className="flex min-h-screen">
-          <SidebarNav />
-          <main className="flex-1 px-10 py-8">{children}</main>
-        </div>
+        <FetchAuth />
+        {session ? (
+          <div className="flex min-h-screen">
+            <SidebarNav
+              user={{ name: session.user.name ?? session.user.email, email: session.user.email }}
+              role={session.role}
+              farms={session.memberships.map((m) => ({ id: m.farmId, name: m.farm.name }))}
+              currentFarmId={session.farm.id}
+            />
+            <main className="flex-1 px-10 py-8">{children}</main>
+          </div>
+        ) : (
+          <main>{children}</main>
+        )}
       </body>
     </html>
   );

@@ -1,3 +1,4 @@
+import "./load-env.js"; // must be first — loads root .env before Prisma client
 import {
   prisma,
   AccountKind,
@@ -7,6 +8,7 @@ import {
   InvoiceStatus,
   BasisType,
   BudgetPeriod,
+  Role,
 } from "../src/index.js";
 import { SCHEDULE_F } from "@fl/core";
 
@@ -58,6 +60,7 @@ async function main() {
     await prisma.membership.deleteMany({ where: { farmId: id } });
     await prisma.farm.delete({ where: { id } });
   }
+  await prisma.user.deleteMany({});           // users are not farm-scoped
   await prisma.commodityPrice.deleteMany({}); // global quote store
 
   const farm = await prisma.farm.create({ data: { name: "Field & Ledger Demo Farm" } });
@@ -237,7 +240,25 @@ async function main() {
     });
   }
 
-  console.log("Seeded demo farm:", farm.id);
+  // --- second farm (multi-farm demo for the farm switcher) ---
+  const farm2 = await prisma.farm.create({ data: { name: "River Bend Farm" } });
+  for (const l of Object.values(SCHEDULE_F)) {
+    await prisma.account.create({ data: { farmId: farm2.id, code: l.code, label: LABEL_OVERRIDES[l.code] ?? l.label, kind: l.kind === "income" ? AccountKind.INCOME : AccountKind.EXPENSE, scheduleFCode: l.code } });
+  }
+  await prisma.accountingPeriod.create({ data: { farmId: farm2.id, year: 2026, locked: false } });
+  const acct2 = async (code: string) => (await prisma.account.findUniqueOrThrow({ where: { farmId_code: { farmId: farm2.id, code } } })).id;
+  await prisma.transaction.create({ data: { farmId: farm2.id, date: new Date("2026-05-01"), description: "Corn sales — first load", accountId: await acct2("crop_sales"), amountCents: 820000n } });
+  await prisma.transaction.create({ data: { farmId: farm2.id, date: new Date("2026-05-03"), description: "Seed corn", accountId: await acct2("seeds_plants"), amountCents: -310000n } });
+
+  // --- users + memberships (Phase 8 auth). Owner has full access to both
+  //     farms; Viewer is read-only on the main farm. ---
+  const owner = await prisma.user.create({ data: { email: "owner@fieldandledger.test", name: "Sam Rivera" } });
+  const viewer = await prisma.user.create({ data: { email: "viewer@fieldandledger.test", name: "Jordan Bell" } });
+  await prisma.membership.create({ data: { userId: owner.id, farmId: farm.id, role: Role.OWNER } });
+  await prisma.membership.create({ data: { userId: owner.id, farmId: farm2.id, role: Role.OWNER } });
+  await prisma.membership.create({ data: { userId: viewer.id, farmId: farm.id, role: Role.VIEWER } });
+
+  console.log("Seeded demo farm:", farm.id, "+ River Bend Farm:", farm2.id, "+ users owner/viewer");
 }
 
 main().then(() => prisma.$disconnect()).catch(async (e) => {
