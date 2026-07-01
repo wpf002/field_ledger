@@ -1,11 +1,12 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, SectionHeading } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
-import { InsightsProjectionChart, type ProjectionDatum } from "@/components/charts/insights-projection-chart";
+import { type ProjectionDatum } from "@/components/charts/insights-projection-chart";
+import { InsightsProjectionView, type ProjectionModel } from "@/components/insights-projection-view";
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { getValuedInventory, inventoryTotals } from "@/lib/valuation";
-import { sumCents, formatCentsDisplay, naiveForecaster, obligationsInWindow, type MonthFlow } from "@fl/core";
+import { sumCents, formatCentsDisplay, naiveForecaster, holtWintersForecaster, obligationsInWindow, type MonthFlow } from "@fl/core";
 import { CalendarRange, CircleCheck, TriangleAlert } from "lucide-react";
 
 const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
@@ -41,7 +42,6 @@ export default async function InsightsPage() {
 
   const projectedExpenses = obligationsTotal + estOperating;
   const projectedIncome = marketableValue; // assumes marketable inventory sells within the window
-  const netPosition = projectedIncome - projectedExpenses;
 
   // Chart: actual months from the ledger, then projected months via the
   // Forecaster seam (naive baseline now; Prophet drops in with the same API).
@@ -53,11 +53,24 @@ export default async function InsightsPage() {
       expenseCents: sumCents(m.filter((t) => t.amountCents < 0n).map((t) => -t.amountCents)),
     };
   });
-  const projected = naiveForecaster.project(history, PROJ, projectedIncome, projectedExpenses);
-  const chart: ProjectionDatum[] = [
-    ...history.map((h) => ({ month: h.month, income: Number(h.incomeCents) / 100, expenses: Number(h.expenseCents) / 100, projected: false })),
-    ...projected.map((p) => ({ month: p.month, income: Number(p.incomeCents) / 100, expenses: Number(p.expenseCents) / 100, projected: true })),
-  ];
+  const histData: ProjectionDatum[] = history.map((h) => ({ month: h.month, income: Number(h.incomeCents) / 100, expenses: Number(h.expenseCents) / 100, projected: false }));
+  const toModel = (proj: MonthFlow[], caption: string): ProjectionModel => {
+    const inc = sumCents(proj.map((p) => p.incomeCents));
+    const exp = sumCents(proj.map((p) => p.expenseCents));
+    return {
+      caption,
+      projected: proj.map((p) => ({ month: p.month, income: Number(p.incomeCents) / 100, expenses: Number(p.expenseCents) / 100, projected: true })),
+      summary: { incomeCents: inc.toString(), expenseCents: exp.toString(), netCents: (inc - exp).toString() },
+    };
+  };
+  const naiveModel = toModel(
+    naiveForecaster.project(history, PROJ, projectedIncome, projectedExpenses),
+    "* Projected months (lighter bars) spread upcoming obligations and marketable-inventory value evenly across the window.",
+  );
+  const hwModel = toModel(
+    holtWintersForecaster.project(history, PROJ, projectedIncome, projectedExpenses),
+    "* Projected months (lighter bars) fitted from your monthly history via Holt-Winters (level + trend; seasonality kicks in with ≥2 years of data).",
+  );
 
   return (
     <>
@@ -65,22 +78,7 @@ export default async function InsightsPage() {
 
       <Card className="p-6">
         <SectionHeading icon={<CalendarRange size={18} className="text-primary" />} title="90-Day Cashflow Projection" />
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-center">
-          <div>
-            <p className="text-sm text-muted">Projected Income</p>
-            <p className="mt-1 font-serif text-3xl font-bold text-positive"><Money cents={projectedIncome} /></p>
-          </div>
-          <div>
-            <p className="text-sm text-muted">Projected Expenses</p>
-            <p className="mt-1 font-serif text-3xl font-bold text-negative"><Money cents={projectedExpenses} /></p>
-          </div>
-          <div>
-            <p className="text-sm text-muted">Expected Net Position</p>
-            <p className="mt-1 font-serif text-3xl font-bold text-ink"><Money cents={netPosition} /></p>
-          </div>
-        </div>
-        <div className="mt-6"><InsightsProjectionChart data={chart} /></div>
-        <p className="mt-3 text-center text-xs text-muted">* Projected months (lighter bars) based on historical averages and upcoming obligations.</p>
+        <InsightsProjectionView history={histData} naive={naiveModel} holtWinters={hwModel} />
       </Card>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
