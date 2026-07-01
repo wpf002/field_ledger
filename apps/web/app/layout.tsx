@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { FetchAuth } from "@/components/fetch-auth";
+import { OfflineSync } from "@/components/offline-sync";
 import { getCurrentFarm } from "@/lib/session";
 
 const serif = Fraunces({ subsets: ["latin"], variable: "--font-serif", weight: ["500", "600", "700"] });
@@ -11,6 +12,14 @@ const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata: Metadata = {
   title: "Field & Ledger",
   description: "Accounting and financial planning for farmers and ranchers.",
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2f3d29",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -19,6 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className={`${serif.variable} ${sans.variable}`}>
       <body className="font-sans">
         <FetchAuth />
+        <OfflineSync />
         {session ? (
           <div className="flex min-h-screen">
             <SidebarNav

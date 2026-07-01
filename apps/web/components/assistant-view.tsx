@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import clsx from "clsx";
 import { Sparkles, PencilLine, Camera, Send, Upload, CheckCircle2, ShieldCheck } from "lucide-react";
+import { enqueue } from "@/lib/outbox";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 type Tab = "chat" | "quicklog" | "receipt";
@@ -87,14 +88,26 @@ export function AssistantView({ farmId }: { farmId: string }) {
 
   async function confirmPost() {
     if (!draft) return;
-    setBusy(true);
+    setBusy(true); setDraftError(null);
+    const body = { date: draft.date, description: draft.description, accountCode: draft.accountCode, amountCents: draft.amountCents };
+    // Field use: if there's no signal, don't lose the entry — queue it locally
+    // and let the sync layer replay it on reconnect. Money stays integer cents.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await enqueue({ farmId, body, createdAt: Date.now() });
+      setPosted("Saved offline — will sync when you're back online."); setDraft(null); setLogText(""); setBusy(false);
+      return;
+    }
     try {
       const res = await fetch(`${API}/farms/${farmId}/transactions`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ date: draft.date, description: draft.description, accountCode: draft.accountCode, amountCents: draft.amountCents }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) { setDraftError((await res.json().catch(() => null))?.message ?? "Post failed"); return; }
       setPosted("Posted to your ledger."); setDraft(null); setLogText(""); router.refresh();
+    } catch {
+      // Network dropped between the online check and the request — queue it.
+      await enqueue({ farmId, body, createdAt: Date.now() });
+      setPosted("Saved offline — will sync when you're back online."); setDraft(null); setLogText("");
     } finally { setBusy(false); }
   }
 
