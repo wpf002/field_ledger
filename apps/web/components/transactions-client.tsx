@@ -21,7 +21,7 @@ export type Txn = {
   reconciled?: boolean;
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 /** Capitalize each word so related items read consistently (e.g. "mixed cube
  *  feed" → "Mixed Cube Feed") regardless of how they were entered. */

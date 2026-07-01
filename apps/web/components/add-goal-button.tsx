@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { toCents } from "@fl/core";
 import { Modal, Field, ModalActions } from "@/components/ui/modal";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 const EMPTY = { name: "", kind: "savings", target: "", current: "", dueAt: "", note: "" };
 
 export function AddGoalButton({ farmId }: { farmId: string }) {

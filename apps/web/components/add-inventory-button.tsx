@@ -6,7 +6,7 @@ import { toCents } from "@fl/core";
 import { PrimaryButton } from "@/components/ui/button";
 import { Modal, Field, ModalActions } from "@/components/ui/modal";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 const CATS = ["LIVESTOCK", "FEED", "CROPS", "EQUIPMENT", "SUPPLIES"] as const;
 const EMPTY = { category: "LIVESTOCK", name: "", quantity: "", unit: "", location: "", unitValue: "", costBasis: "", usefulLifeYears: "" };
 

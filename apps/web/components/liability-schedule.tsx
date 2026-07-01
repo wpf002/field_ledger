@@ -6,7 +6,7 @@ import { Money } from "@/components/ui/money";
 import { fmtDate } from "@/lib/format";
 import { CalendarClock, X, ArrowDownToLine } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 type Row = { period: number; dueDate: string; paymentCents: string; interestCents: string; principalCents: string; balanceAfterCents: string };
 

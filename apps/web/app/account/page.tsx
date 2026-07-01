@@ -4,7 +4,7 @@ import { Card, SectionHeading } from "@/components/ui/card";
 import { getDemoFarm } from "@/lib/data";
 import { Download, Building2, UserCircle2, FileText } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 export default async function AccountPage() {
   const farm = await getDemoFarm();

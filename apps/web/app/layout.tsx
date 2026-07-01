@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { SidebarNav } from "@/components/sidebar-nav";
-import { FetchAuth } from "@/components/fetch-auth";
 import { OfflineSync } from "@/components/offline-sync";
 import { getCurrentFarm } from "@/lib/session";
 
@@ -27,7 +26,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={`${serif.variable} ${sans.variable}`}>
       <body className="font-sans">
-        <FetchAuth />
         <OfflineSync />
         {session ? (
           <div className="flex min-h-screen">

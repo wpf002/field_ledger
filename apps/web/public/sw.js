@@ -25,7 +25,8 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return; // writes are queued client-side, never cached
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return; // API + cross-origin: hands off
+  if (url.origin !== self.location.origin) return; // cross-origin: hands off
+  if (url.pathname.startsWith("/api/")) return; // proxied API — always network
   // React Server Component / data fetches must stay fresh — don't intercept.
   if (url.searchParams.has("_rsc") || req.headers.get("RSC") === "1") return;
 

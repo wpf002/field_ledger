@@ -6,7 +6,7 @@ import { toCents } from "@fl/core";
 import { PrimaryButton } from "@/components/ui/button";
 import { Modal, Field, ModalActions } from "@/components/ui/modal";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 const EMPTY = { type: "CASH_RENT", name: "", lessor: "", acres: "", termStart: "", termEnd: "", annualRent: "", paymentFreq: "annual", nextPaymentAt: "" };
 
 export function AddLeaseButton({ farmId }: { farmId: string }) {

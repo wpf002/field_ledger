@@ -1,6 +1,7 @@
 import "./env.js"; // must be first — loads root .env before env-reading modules
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import sensible from "@fastify/sensible";
 import { registerHealth } from "./routes/health.js";
 import { registerTransactions } from "./routes/transactions.js";
@@ -16,7 +17,7 @@ import { registerReports } from "./routes/reports.js";
 import { registerInvoices } from "./routes/invoices.js";
 import { registerAssistant } from "./routes/assistant.js";
 import { bigintReplySerializer } from "./plugins/bigint-serializer.js";
-import { verifyToken, bearer, roleForFarm } from "./lib/session.js";
+import { verifyToken, tokenFromRequest, roleForFarm } from "./lib/session.js";
 
 // 25 MB body limit so multi-year CSV/OFX statements parse without truncation.
 const app = Fastify({ logger: true, bodyLimit: 25 * 1024 * 1024 });
@@ -25,7 +26,8 @@ const app = Fastify({ logger: true, bodyLimit: 25 * 1024 * 1024 });
 // every route (setReplySerializer covers schemaless routes too).
 app.setReplySerializer(bigintReplySerializer);
 
-await app.register(cors, { origin: process.env.WEB_ORIGIN ?? true });
+await app.register(cors, { origin: process.env.WEB_ORIGIN ?? true, credentials: true });
+await app.register(cookie);
 await app.register(sensible);
 
 // Phase 8: role-gate writes. Reads (GET) and read-only POSTs (chat, import
@@ -37,7 +39,7 @@ app.addHook("preHandler", async (req, reply) => {
   if (req.method === "POST" && READ_ONLY_POST.some((s) => req.url.includes(s))) return;
   const farmId = req.url.match(/\/farms\/([^/?]+)/)?.[1];
   if (!farmId) return; // non-farm-scoped mutation
-  const v = verifyToken(bearer(req.headers.authorization));
+  const v = verifyToken(tokenFromRequest(req));
   if (!v) return reply.code(401).send({ message: "Sign in required." });
   const role = await roleForFarm(v.userId, farmId);
   if (!role) return reply.code(403).send({ message: "You don't have access to this farm." });

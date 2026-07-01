@@ -7,7 +7,7 @@ import { FileText, Receipt, TrendingUp, Tractor, Download, Lock, ArrowLeft } fro
 
 export const dynamic = "force-dynamic";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 const YEARS = [2026, 2023];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { toCents } from "@fl/core";
 import { Plus, X } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 type Account = { code: string; label: string; kind: "INCOME" | "EXPENSE" };
 
 export function SetBudgetButton({ farmId }: { farmId: string }) {

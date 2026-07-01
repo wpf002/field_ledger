@@ -1,6 +1,7 @@
 import "./load-env.js"; // must be first — loads root .env before Prisma client
 import {
   prisma,
+  hashPassword,
   AccountKind,
   InventoryCategory,
   LiabilityType,
@@ -252,8 +253,9 @@ async function main() {
 
   // --- users + memberships (Phase 8 auth). Owner has full access to both
   //     farms; Viewer is read-only on the main farm. ---
-  const owner = await prisma.user.create({ data: { email: "owner@fieldandledger.test", name: "Sam Rivera" } });
-  const viewer = await prisma.user.create({ data: { email: "viewer@fieldandledger.test", name: "Jordan Bell" } });
+  const demoPassword = hashPassword("demo1234"); // shared demo credential
+  const owner = await prisma.user.create({ data: { email: "owner@fieldandledger.test", name: "Sam Rivera", passwordHash: demoPassword } });
+  const viewer = await prisma.user.create({ data: { email: "viewer@fieldandledger.test", name: "Jordan Bell", passwordHash: demoPassword } });
   await prisma.membership.create({ data: { userId: owner.id, farmId: farm.id, role: Role.OWNER } });
   await prisma.membership.create({ data: { userId: owner.id, farmId: farm2.id, role: Role.OWNER } });
   await prisma.membership.create({ data: { userId: viewer.id, farmId: farm.id, role: Role.VIEWER } });

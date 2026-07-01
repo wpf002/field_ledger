@@ -6,7 +6,7 @@ import { Money } from "@/components/ui/money";
 import { toCents, formatCentsDisplay } from "@fl/core";
 import { X, SlidersHorizontal } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 export type DetailProps = {
   farmId: string;

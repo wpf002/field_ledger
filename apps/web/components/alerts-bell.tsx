@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Bell, X, AlertTriangle, AlertOctagon, Info, Settings2, Check } from "lucide-react";
 import clsx from "clsx";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 type Alert = { key: string; type: string; severity: "CRITICAL" | "WARNING" | "INFO"; title: string; message: string; dueAt: string | null };
 type Settings = Record<string, { enabled: boolean; leadDays: number }>;

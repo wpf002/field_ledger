@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { PrimaryButton } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 const KINDS = ["planting", "calving", "harvest", "breeding", "other"] as const;
 
 export function NewPlanButton({ farmId }: { farmId: string }) {

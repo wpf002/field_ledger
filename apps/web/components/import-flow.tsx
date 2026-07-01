@@ -6,7 +6,7 @@ import { PrimaryButton } from "@/components/ui/button";
 import { csvToTable, parseOfx, type ParsedRow, type PreviewRow } from "@fl/core";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowLeft } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 type Account = { code: string; label: string; kind: "INCOME" | "EXPENSE" };
 type Row = PreviewRow & { selected: boolean };
 type Step = "upload" | "map" | "preview" | "done";

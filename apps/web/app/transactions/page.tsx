@@ -1,8 +1,8 @@
 import { TransactionsClient, type Txn, type Account } from "@/components/transactions-client";
 import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 
-// Phase 0 reference page: data flows through the live Fastify API end to end.
-const API = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// Server-side fetch needs an absolute origin (can't fetch a relative /api).
+const API = process.env.API_URL ?? "http://localhost:4000";
 
 export const dynamic = "force-dynamic";
 

@@ -24,6 +24,12 @@ export function bearer(authorization?: string): string | undefined {
   return authorization?.startsWith("Bearer ") ? authorization.slice(7) : undefined;
 }
 
+/** Session token from the httpOnly cookie (the same-origin proxy forwards it),
+ *  falling back to a Bearer header for direct/API-test callers. */
+export function tokenFromRequest(req: { cookies?: Record<string, string | undefined>; headers: { authorization?: string } }): string | undefined {
+  return req.cookies?.fl_token ?? bearer(req.headers.authorization);
+}
+
 export async function roleForFarm(userId: string, farmId: string) {
   const m = await prisma.membership.findUnique({ where: { userId_farmId: { userId, farmId } } });
   return m?.role ?? null;

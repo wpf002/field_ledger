@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FileText, Send, CheckCircle2 } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 export function InvoiceActions({ farmId, id, number, status }: { farmId: string; id: string; number: string; status: string }) {
   const router = useRouter();

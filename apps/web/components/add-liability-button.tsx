@@ -6,7 +6,7 @@ import { toCents } from "@fl/core";
 import { PrimaryButton } from "@/components/ui/button";
 import { Modal, Field, ModalActions } from "@/components/ui/modal";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 const TYPES = [["EQUIPMENT_LOAN", "Equipment Loan"], ["OPERATING_LINE", "Operating Line"], ["MORTGAGE", "Mortgage"], ["OTHER", "Other"]] as const;
 const FREQ = ["monthly", "quarterly", "semiannual", "annual"] as const;
 

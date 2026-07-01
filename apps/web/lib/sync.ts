@@ -1,7 +1,7 @@
 "use client";
 import { allItems, removeItem, type OutboxItem } from "./outbox";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 let flushing = false;
 

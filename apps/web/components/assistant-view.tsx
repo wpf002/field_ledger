@@ -7,7 +7,7 @@ import clsx from "clsx";
 import { Sparkles, PencilLine, Camera, Send, Upload, CheckCircle2, ShieldCheck } from "lucide-react";
 import { enqueue } from "@/lib/outbox";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 type Tab = "chat" | "quicklog" | "receipt";
 type Account = { code: string; label: string; kind: "INCOME" | "EXPENSE" };
 type Draft = { date: string; description: string; amountCents: string; kind: "INCOME" | "EXPENSE"; accountCode: string; accountLabel: string };

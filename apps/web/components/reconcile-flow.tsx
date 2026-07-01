@@ -7,7 +7,7 @@ import { csvToTable, parseOfx, type ParsedRow } from "@fl/core";
 import { fmtDate } from "@/lib/format";
 import { Upload, Link2, CheckCircle2, ArrowLeft } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 type StmtLine = { date: string; description: string; amountCents: string; error?: string };
 type Txn = { id: string; date: string; description: string; amountCents: string; account: { label: string } };
