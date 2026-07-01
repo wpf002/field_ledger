@@ -6,12 +6,13 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { ExpenseBudgets } from "@/components/expense-budgets";
 import { BudgetBar } from "@/components/budget-bar";
 import { SetBudgetButton } from "@/components/set-budget-button";
+import { AddGoalButton } from "@/components/add-goal-button";
 import { prisma } from "@fl/db";
-import { getDemoFarmId } from "@/lib/data";
+import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 import { getBudgetStatuses } from "@/lib/budgets";
 import { fmtMonthYear } from "@/lib/format";
 import { sumCents } from "@fl/core";
-import { Clock, Target, Plus, CalendarRange, CalendarDays, AlertTriangle } from "lucide-react";
+import { Clock, Target, CalendarRange, CalendarDays, AlertTriangle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ const year = new Date().getUTCFullYear();
 
 export default async function BudgetsPage() {
   const farmId = await getDemoFarmId();
+  const canEdit = canWrite(await getCurrentRole());
   const [goals, budgets] = await Promise.all([
     prisma.financialGoal.findMany({ where: { farmId }, orderBy: { name: "asc" } }),
     getBudgetStatuses(farmId),
@@ -49,7 +51,7 @@ export default async function BudgetsPage() {
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h3 className="flex items-center gap-2 font-serif text-xl font-semibold text-ink"><Clock size={18} /> Expense Budgets</h3>
-            <SetBudgetButton farmId={farmId} />
+            {canEdit && <SetBudgetButton farmId={farmId} />}
           </div>
           <ExpenseBudgets monthly={list(monthly, "monthly")} annual={list(annual, "annual")} />
         </div>
@@ -58,7 +60,7 @@ export default async function BudgetsPage() {
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h3 className="flex items-center gap-2 font-serif text-xl font-semibold text-ink"><Target size={18} className="text-positive" /> Financial Goals</h3>
-            <button className="flex items-center justify-center rounded-btn bg-primary p-2 text-white hover:bg-primary-deep"><Plus size={16} /></button>
+            {canEdit && <AddGoalButton farmId={farmId} />}
           </div>
           <div className="space-y-4">
             {goals.map((g) => {

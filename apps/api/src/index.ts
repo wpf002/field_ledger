@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import sensible from "@fastify/sensible";
 import { registerHealth } from "./routes/health.js";
 import { registerTransactions } from "./routes/transactions.js";
+import { registerRecords } from "./routes/records.js";
 import { registerFarm } from "./routes/farm.js";
 import { registerImport } from "./routes/import.js";
 import { registerReconcile } from "./routes/reconcile.js";
@@ -46,6 +47,7 @@ app.addHook("preHandler", async (req, reply) => {
 await registerHealth(app);
 await registerFarm(app);
 await registerTransactions(app);
+await registerRecords(app);
 await registerImport(app);
 await registerReconcile(app);
 await registerValuation(app);

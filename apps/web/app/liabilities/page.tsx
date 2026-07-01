@@ -1,16 +1,16 @@
 import { PageHeader } from "@/components/ui/page-header";
-import { PrimaryButton } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, SectionHeading } from "@/components/ui/card";
 import { CategoryPill } from "@/components/ui/category-pill";
 import { Money } from "@/components/ui/money";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { LiabilitySchedule } from "@/components/liability-schedule";
+import { AddLiabilityButton } from "@/components/add-liability-button";
 import { prisma } from "@fl/db";
-import { getDemoFarmId } from "@/lib/data";
+import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 import { sumCents, roundCentsToDollar } from "@fl/core";
 import { fmtMonthDay } from "@/lib/format";
-import { Plus, Calendar, CalendarClock } from "lucide-react";
+import { Calendar, CalendarClock } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +29,7 @@ function monthlyInterestCents(balanceCents: bigint, ratePct: unknown): bigint {
 
 export default async function LiabilitiesPage() {
   const farmId = await getDemoFarmId();
+  const canEdit = canWrite(await getCurrentRole());
   const liabilities = await prisma.liability.findMany({ where: { farmId }, orderBy: { createdAt: "asc" } });
 
   const totalDebt = sumCents(liabilities.map((l) => l.balanceCents));
@@ -42,7 +43,7 @@ export default async function LiabilitiesPage() {
       <PageHeader
         title="Liabilities"
         subtitle="Manage loans, credit lines, and debt obligations."
-        action={<PrimaryButton><Plus size={16} /> Add Liability</PrimaryButton>}
+        action={canEdit ? <AddLiabilityButton farmId={farmId} /> : undefined}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

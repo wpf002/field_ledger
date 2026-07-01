@@ -1,19 +1,20 @@
 import { PageHeader } from "@/components/ui/page-header";
-import { PrimaryButton } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card } from "@/components/ui/card";
 import { CategoryPill } from "@/components/ui/category-pill";
 import { Money } from "@/components/ui/money";
+import { AddLeaseButton } from "@/components/add-lease-button";
 import { prisma } from "@fl/db";
-import { getDemoFarmId } from "@/lib/data";
+import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 import { sumCents } from "@fl/core";
 import { utcYear } from "@/lib/format";
-import { Plus, User, LandPlot, Calendar, AlertTriangle } from "lucide-react";
+import { User, LandPlot, Calendar, AlertTriangle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function LeasesPage() {
   const farmId = await getDemoFarmId();
+  const canEdit = canWrite(await getCurrentRole());
   const leases = await prisma.lease.findMany({ where: { farmId }, orderBy: { createdAt: "asc" } });
 
   const totalAcres = leases.reduce((a, l) => a + Number(l.acres), 0);
@@ -24,7 +25,7 @@ export default async function LeasesPage() {
       <PageHeader
         title="Lease Agreements"
         subtitle="Manage leased land and property agreements."
-        action={<PrimaryButton><Plus size={16} /> Add Lease</PrimaryButton>}
+        action={canEdit ? <AddLeaseButton farmId={farmId} /> : undefined}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

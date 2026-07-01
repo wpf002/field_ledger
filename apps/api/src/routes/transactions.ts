@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@fl/db";
-import { transactionInput, deserializeCents } from "@fl/core";
+import { transactionInput, transactionUpdateInput, deserializeCents } from "@fl/core";
 
 /** Invariant 2: refuse writes that fall in a locked accounting period. */
 async function assertPeriodOpen(farmId: string, date: Date) {
@@ -63,6 +63,40 @@ export async function registerTransactions(app: FastifyInstance) {
     });
     await audit(farmId, "create", tx.id, null, snap(tx));
     return reply.code(201).send(tx);
+  });
+
+  app.put("/farms/:farmId/transactions/:id", async (req, reply) => {
+    const { farmId, id } = req.params as { farmId: string; id: string };
+    const existing = await prisma.transaction.findFirst({ where: { id, farmId } });
+    if (!existing) return reply.notFound("Transaction not found");
+
+    const parsed = transactionUpdateInput.safeParse(req.body);
+    if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const d = parsed.data;
+
+    // Both the current period and the target period must be open (Invariant 2).
+    await assertPeriodOpen(farmId, existing.date);
+    if (d.date) await assertPeriodOpen(farmId, d.date);
+
+    let accountId: string | undefined;
+    if (d.accountCode) {
+      const account = await prisma.account.findUnique({ where: { farmId_code: { farmId, code: d.accountCode } } });
+      if (!account) return reply.badRequest(`Unknown account code: ${d.accountCode}`);
+      accountId = account.id;
+    }
+
+    const updated = await prisma.transaction.update({
+      where: { id },
+      data: {
+        date: d.date,
+        description: d.description,
+        accountId,
+        amountCents: d.amountCents != null ? deserializeCents(d.amountCents) : undefined,
+        relatedLabel: d.relatedLabel,
+      },
+    });
+    await audit(farmId, "update", id, snap(existing), snap(updated));
+    return reply.send(updated);
   });
 
   app.delete("/farms/:farmId/transactions/:id", async (req, reply) => {

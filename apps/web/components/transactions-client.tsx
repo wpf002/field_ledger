@@ -17,7 +17,7 @@ export type Txn = {
   amountCents: string;
   relatedLabel: string | null;
   relatedInventory: { name: string } | null;
-  account: { label: string; kind: "INCOME" | "EXPENSE" };
+  account: { code: string; label: string; kind: "INCOME" | "EXPENSE" };
   reconciled?: boolean;
 };
 
@@ -31,6 +31,7 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
   const [rows, setRows] = useState<Txn[]>(initial);
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<Txn | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -103,7 +104,7 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
                   <td className="px-5 py-3.5">
                     {canWrite && (
                       <div className="flex justify-end gap-3 text-muted">
-                        <button className="hover:text-ink" title="Edit"><Pencil size={16} /></button>
+                        <button onClick={() => setEditing(t)} className="hover:text-ink" title="Edit"><Pencil size={16} /></button>
                         <button onClick={() => remove(t.id)} className="hover:text-negative" title="Delete"><Trash2 size={16} /></button>
                       </div>
                     )}
@@ -119,18 +120,28 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
         </div>
       </Card>
 
-      {adding && <AddModal farmId={farmId} accounts={accounts} onClose={() => setAdding(false)} onAdded={() => { setAdding(false); refresh(); }} />}
+      {(adding || editing) && (
+        <TxnModal
+          key={editing?.id ?? "new"}
+          farmId={farmId}
+          accounts={accounts}
+          edit={editing ?? undefined}
+          onClose={() => { setAdding(false); setEditing(null); }}
+          onSaved={() => { setAdding(false); setEditing(null); refresh(); }}
+        />
+      )}
     </>
   );
 }
 
-function AddModal({ farmId, accounts, onClose, onAdded }: { farmId: string; accounts: Account[]; onClose: () => void; onAdded: () => void }) {
-  const [kind, setKind] = useState<"INCOME" | "EXPENSE">("EXPENSE");
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [accountCode, setAccountCode] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [related, setRelated] = useState("");
+function TxnModal({ farmId, accounts, edit, onClose, onSaved }: { farmId: string; accounts: Account[]; edit?: Txn; onClose: () => void; onSaved: () => void }) {
+  const editing = !!edit;
+  const [kind, setKind] = useState<"INCOME" | "EXPENSE">(edit?.account.kind ?? "EXPENSE");
+  const [description, setDescription] = useState(edit?.description ?? "");
+  const [amount, setAmount] = useState(edit ? (Math.abs(Number(edit.amountCents)) / 100).toString() : "");
+  const [accountCode, setAccountCode] = useState(edit?.account.code ?? "");
+  const [date, setDate] = useState(edit ? edit.date.slice(0, 10) : new Date().toISOString().slice(0, 10));
+  const [related, setRelated] = useState(edit?.relatedLabel ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -142,8 +153,8 @@ function AddModal({ farmId, accounts, onClose, onAdded }: { farmId: string; acco
       const magnitude = toCents(amount); // rejects sub-cent / junk (Invariant 1)
       const signed = kind === "EXPENSE" ? -magnitude : magnitude;
       setBusy(true);
-      const res = await fetch(`${API}/farms/${farmId}/transactions`, {
-        method: "POST",
+      const res = await fetch(`${API}/farms/${farmId}/transactions${editing ? `/${edit!.id}` : ""}`, {
+        method: editing ? "PUT" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           date, description, accountCode: accountCode || choices[0]?.code,
@@ -151,8 +162,8 @@ function AddModal({ farmId, accounts, onClose, onAdded }: { farmId: string; acco
           relatedLabel: related || undefined,
         }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.message ?? "Create failed");
-      onAdded();
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.message ?? (editing ? "Update failed" : "Create failed"));
+      onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Invalid input");
     } finally {
@@ -165,7 +176,7 @@ function AddModal({ farmId, accounts, onClose, onAdded }: { farmId: string; acco
       <Card className="w-full max-w-md p-6" >
         <div onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between">
-            <h3 className="font-serif text-2xl font-semibold text-ink">Add Transaction</h3>
+            <h3 className="font-serif text-2xl font-semibold text-ink">{editing ? "Edit Transaction" : "Add Transaction"}</h3>
             <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
           </div>
 
@@ -192,7 +203,7 @@ function AddModal({ farmId, accounts, onClose, onAdded }: { farmId: string; acco
             {error && <p className="text-sm text-negative">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={onClose} className="rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40">Cancel</button>
-              <button onClick={submit} disabled={busy || !description || !amount} className="rounded-btn bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-deep disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
+              <button onClick={submit} disabled={busy || !description || !amount} className="rounded-btn bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-deep disabled:opacity-50">{busy ? "Saving…" : editing ? "Save changes" : "Save"}</button>
             </div>
           </div>
         </div>
