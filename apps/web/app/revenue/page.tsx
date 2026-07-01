@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { RevenueTabs } from "@/components/revenue-tabs";
 import { InvoiceActions } from "@/components/invoice-actions";
+import { EmptyState } from "@/components/ui/empty-state";
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { sumCents } from "@fl/core";
@@ -35,7 +36,9 @@ export default async function RevenuePage() {
   const outstanding = sumCents(invoices.filter((i) => i.status === "SENT" || i.status === "OVERDUE").map((i) => i.totalCents));
   const paidCount = invoices.filter((i) => i.status === "PAID").length;
 
-  const invoiceList = (
+  const invoiceList = invoices.length === 0 ? (
+    <EmptyState icon={<FileText size={22} />} title="No invoices yet" hint="Create an invoice to bill a customer and track payments here." />
+  ) : (
     <div className="space-y-4">
       {invoices.map((inv) => {
         const overdue = inv.status === "SENT" && inv.dueAt < new Date();
@@ -60,7 +63,10 @@ export default async function RevenuePage() {
     </div>
   );
 
-  const customerList = (
+  const customerListEmpty = customers.length === 0;
+  const customerList = customerListEmpty ? (
+    <EmptyState icon={<Mail size={22} />} title="No customers yet" hint="Customers appear here as you add invoices for them." />
+  ) : (
     <div className="space-y-4">
       {customers.map((c) => (
         <Card key={c.id} className="flex items-center justify-between p-5">

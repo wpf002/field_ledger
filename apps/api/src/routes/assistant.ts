@@ -126,24 +126,37 @@ export async function registerAssistant(app: FastifyInstance) {
       });
     }
 
-    const client = new Anthropic();
-    const res = await client.messages.create({
-      model: MODEL, max_tokens: 1024, system: "Extract the vendor, date (yyyy-mm-dd), total amount in dollars, and a short description from this farm receipt. Respond ONLY with JSON: {\"vendor\":\"\",\"date\":\"\",\"amount\":\"\",\"description\":\"\"}.",
-      messages: [{ role: "user", content: [
-        { type: "image", source: { type: "base64", media_type: (parsed.data.mediaType ?? "image/jpeg") as "image/jpeg", data: parsed.data.imageBase64 } },
-        { type: "text", text: "Extract the receipt details as JSON." },
-      ] }],
-    });
-    const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
     let parsedJson: { vendor?: string; date?: string; amount?: string; description?: string } = {};
-    try { parsedJson = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); } catch { /* fall through to skeleton */ }
+    try {
+      const client = new Anthropic();
+      const res = await client.messages.create({
+        model: MODEL, max_tokens: 1024, system: "Extract the vendor, date (yyyy-mm-dd), total amount in dollars, and a short description from this farm receipt. Respond ONLY with JSON: {\"vendor\":\"\",\"date\":\"\",\"amount\":\"\",\"description\":\"\"}.",
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: (parsed.data.mediaType ?? "image/jpeg") as "image/jpeg", data: parsed.data.imageBase64 } },
+          { type: "text", text: "Extract the receipt details as JSON." },
+        ] }],
+      });
+      const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
+      parsedJson = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+    } catch (e) {
+      // Vision call or JSON parse failed — return a skeleton draft to fill in by hand.
+      const account = await prisma.account.findUnique({ where: { farmId_code: { farmId, code: "supplies" } } });
+      return reply.send({
+        note: "Couldn't read the receipt automatically — please fill in the draft.",
+        error: e instanceof Error ? e.message : "vision error",
+        draft: { date: new Date().toISOString().slice(0, 10), description: "Receipt", amountCents: "0", kind: "EXPENSE", accountCode: "supplies", accountLabel: account?.label ?? "Supplies" },
+      });
+    }
+
+    const amount = Number(parsedJson.amount);
+    const amountCents = Number.isFinite(amount) && amount > 0 ? (-BigInt(Math.round(amount * 100))).toString() : "0";
     const code = inferScheduleFCode(parsedJson.description ?? parsedJson.vendor ?? "", false);
     const account = await prisma.account.findUnique({ where: { farmId_code: { farmId, code } } });
     return reply.send({
       draft: {
         date: parsedJson.date || new Date().toISOString().slice(0, 10),
         description: [parsedJson.vendor, parsedJson.description].filter(Boolean).join(" — ") || "Receipt",
-        amountCents: parsedJson.amount ? (-BigInt(Math.round(Number(parsedJson.amount) * 100))).toString() : "0",
+        amountCents,
         kind: "EXPENSE", accountCode: code, accountLabel: account?.label ?? code,
       },
     });

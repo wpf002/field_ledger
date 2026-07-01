@@ -6,11 +6,12 @@ import { Money } from "@/components/ui/money";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { LiabilitySchedule } from "@/components/liability-schedule";
 import { AddLiabilityButton } from "@/components/add-liability-button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { prisma } from "@fl/db";
 import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 import { sumCents, roundCentsToDollar } from "@fl/core";
 import { fmtMonthDay } from "@/lib/format";
-import { Calendar, CalendarClock } from "lucide-react";
+import { Calendar, CalendarClock, Wallet } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,10 @@ export default async function LiabilitiesPage() {
         <StatCard label="Total Outstanding Debt" value={<Money cents={totalDebt} className="text-white" />} sub={`Across ${liabilities.length} active liabilities`} variant="brown" />
         <StatCard label="Est. Monthly Interest" value={<Money cents={-roundCentsToDollar(monthlyInterest)} />} sub="Projected cost of carry" />
       </div>
+
+      {liabilities.length === 0 && (
+        <div className="mt-6"><EmptyState icon={<Wallet size={22} />} title="No liabilities tracked" hint="Add loans and credit lines to see balances, interest, and upcoming payments." action={canEdit ? <AddLiabilityButton farmId={farmId} /> : undefined} /></div>
+      )}
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
         {liabilities.map((l) => {

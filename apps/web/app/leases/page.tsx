@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { CategoryPill } from "@/components/ui/category-pill";
 import { Money } from "@/components/ui/money";
 import { AddLeaseButton } from "@/components/add-lease-button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { prisma } from "@fl/db";
 import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 import { sumCents } from "@fl/core";
@@ -32,6 +33,10 @@ export default async function LeasesPage() {
         <StatCard label="Total Leased Acreage" value={<span>{totalAcres.toLocaleString()} <span className="text-2xl font-normal">ac</span></span>} sub={`Across ${leases.length} agreements`} variant="brown" />
         <StatCard label="Total Annual Rent" value={<Money cents={totalAnnualRent} />} sub="Base cash rent costs" />
       </div>
+
+      {leases.length === 0 && (
+        <div className="mt-6"><EmptyState icon={<LandPlot size={22} />} title="No leases yet" hint="Add cash-rent or crop-share agreements to track acreage, terms, and rent obligations." action={canEdit ? <AddLeaseButton farmId={farmId} /> : undefined} /></div>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {leases.map((l) => {

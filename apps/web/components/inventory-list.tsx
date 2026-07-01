@@ -40,7 +40,7 @@ export function InventoryList({ farmId, items }: { farmId: string; items: Invent
       </Card>
 
       {filtered.length === 0 ? (
-        <Card className="p-10 text-center text-sm text-muted">No inventory matches your search.</Card>
+        <Card className="p-10 text-center text-sm text-muted">{items.length === 0 ? "No inventory items yet — add your first with the button above." : "No inventory matches your search."}</Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((i) => (
