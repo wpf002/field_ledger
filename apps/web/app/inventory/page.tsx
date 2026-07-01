@@ -1,13 +1,14 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { PrimaryButton } from "@/components/ui/button";
+import { StatCard } from "@/components/ui/stat-card";
 import { Card } from "@/components/ui/card";
 import { CategoryPill } from "@/components/ui/category-pill";
 import { Money } from "@/components/ui/money";
 import { ValuationDetail } from "@/components/valuation-detail";
 import { getDemoFarmId } from "@/lib/data";
 import { getValuedInventory } from "@/lib/valuation";
-import { formatCentsDisplay } from "@fl/core";
-import { Plus, Search, Boxes, MapPin } from "lucide-react";
+import { formatCentsDisplay, sumCents } from "@fl/core";
+import { Plus, Search, Boxes, MapPin, Beef, Wheat, Tractor } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,12 @@ export default async function InventoryPage() {
   const farmId = await getDemoFarmId();
   const valued = await getValuedInventory(farmId);
 
+  const catValue = (cats: string[]) => sumCents(valued.filter((v) => cats.includes(v.item.category)).map((v) => v.valuation.valueCents));
+  const totalValue = sumCents(valued.map((v) => v.valuation.valueCents));
+  const livestockValue = catValue(["LIVESTOCK"]);
+  const cropsFeedValue = catValue(["CROPS", "FEED"]);
+  const equipmentValue = catValue(["EQUIPMENT", "SUPPLIES"]);
+
   return (
     <>
       <PageHeader
@@ -25,6 +32,13 @@ export default async function InventoryPage() {
         subtitle="Manage livestock, crops, equipment, and supplies."
         action={<PrimaryButton><Plus size={16} /> Add Item</PrimaryButton>}
       />
+
+      <div className="mb-6 grid grid-cols-2 gap-5 lg:grid-cols-4">
+        <StatCard label="Total Inventory Value" value={<Money cents={totalValue} className="text-white" />} sub={`${valued.length} active lots/items`} variant="primary" icon={<Boxes size={18} className="text-white/80" />} />
+        <StatCard label="Livestock" value={<Money cents={livestockValue} />} sub="Head at market value" icon={<Beef size={18} className="text-muted" />} />
+        <StatCard label="Crops & Feed" value={<Money cents={cropsFeedValue} />} sub="Stored production" icon={<Wheat size={18} className="text-muted" />} />
+        <StatCard label="Equipment" value={<Money cents={equipmentValue} />} sub="Depreciated book value" icon={<Tractor size={18} className="text-muted" />} />
+      </div>
 
       <Card className="mb-6 flex items-center gap-3 px-4 py-3">
         <Search size={18} className="text-muted" />

@@ -88,7 +88,7 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
                 <tr key={t.id} className="border-t border-border">
                   <td className="whitespace-nowrap px-5 py-3.5 text-ink">{fmtDate(t.date)}</td>
                   <td className="px-5 py-3.5 text-ink">{t.description}</td>
-                  <td className="px-5 py-3.5">{related && <span className="rounded-pill bg-mint px-3 py-1 text-xs text-positive">{related}</span>}</td>
+                  <td className="px-5 py-3.5"><span className="text-muted/60">{related ? <span className="inline-block whitespace-nowrap rounded-pill bg-mint px-3 py-1 text-xs text-positive">{related}</span> : "—"}</span></td>
                   <td className="px-5 py-3.5"><CategoryPill>{t.account.label}</CategoryPill></td>
                   <td className="px-5 py-3.5 text-right">
                     <span className="inline-flex items-center gap-1.5">

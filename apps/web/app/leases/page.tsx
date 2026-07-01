@@ -32,7 +32,7 @@ export default async function LeasesPage() {
         <StatCard label="Total Annual Rent" value={<Money cents={totalAnnualRent} />} sub="Base cash rent costs" />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {leases.map((l) => {
           const expired = l.termEnd < new Date();
           return (

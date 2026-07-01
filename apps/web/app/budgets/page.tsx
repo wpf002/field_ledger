@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
 import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -9,7 +10,8 @@ import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { getBudgetStatuses } from "@/lib/budgets";
 import { fmtMonthYear } from "@/lib/format";
-import { Clock, Target, Plus } from "lucide-react";
+import { sumCents } from "@fl/core";
+import { Clock, Target, Plus, CalendarRange, CalendarDays, AlertTriangle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,9 @@ export default async function BudgetsPage() {
   ]);
   const monthly = budgets.filter((b) => b.period === "MONTHLY");
   const annual = budgets.filter((b) => b.period === "ANNUAL");
+  const monthlyTotal = sumCents(monthly.map((b) => b.status.amountCents));
+  const annualTotal = sumCents(annual.map((b) => b.status.amountCents));
+  const overCount = budgets.filter((b) => b.status.over).length;
   const list = (rows: typeof budgets, label: string) =>
     rows.length ? <div className="space-y-5">{rows.map((b) => <BudgetBar key={b.id} status={b.status} />)}</div>
       : <p className="py-6 text-center text-sm text-muted">No {label} budgets set for {year}.</p>;
@@ -31,6 +36,13 @@ export default async function BudgetsPage() {
   return (
     <>
       <PageHeader title="Budgets & Goals" subtitle="Plan your expenses and track financial targets." />
+
+      <div className="mb-8 grid grid-cols-2 gap-5 lg:grid-cols-4">
+        <StatCard label="Monthly Budgets" value={<Money cents={monthlyTotal} />} sub={`${monthly.length} categories`} icon={<CalendarDays size={18} className="text-muted" />} />
+        <StatCard label="Annual Budgets" value={<Money cents={annualTotal} />} sub={`${annual.length} categories`} icon={<CalendarRange size={18} className="text-muted" />} />
+        <StatCard label="Over Budget" value={`${overCount}`} sub={overCount === 1 ? "category needs attention" : "categories need attention"} variant={overCount > 0 ? "cream" : "default"} icon={<AlertTriangle size={18} className="text-rust" />} />
+        <StatCard label="Financial Goals" value={`${goals.length}`} sub="Active targets" variant="mint" icon={<Target size={18} className="text-positive" />} />
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
         {/* Expense budgets */}

@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { PrimaryButton } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
-import { Card } from "@/components/ui/card";
+import { Card, SectionHeading } from "@/components/ui/card";
 import { CategoryPill } from "@/components/ui/category-pill";
 import { Money } from "@/components/ui/money";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -10,7 +10,7 @@ import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { sumCents, roundCentsToDollar } from "@fl/core";
 import { fmtMonthDay } from "@/lib/format";
-import { Plus, Calendar } from "lucide-react";
+import { Plus, Calendar, CalendarClock } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +33,9 @@ export default async function LiabilitiesPage() {
 
   const totalDebt = sumCents(liabilities.map((l) => l.balanceCents));
   const monthlyInterest = sumCents(liabilities.map((l) => monthlyInterestCents(l.balanceCents, l.ratePct)));
+  const upcoming = liabilities
+    .filter((l) => l.nextPaymentAt)
+    .sort((a, b) => a.nextPaymentAt!.getTime() - b.nextPaymentAt!.getTime());
 
   return (
     <>
@@ -85,6 +88,26 @@ export default async function LiabilitiesPage() {
           );
         })}
       </div>
+
+      {upcoming.length > 0 && (
+        <Card className="mt-6 p-6">
+          <SectionHeading icon={<CalendarClock size={18} className="text-primary" />} title="Upcoming Payments" />
+          <div className="mt-2 divide-y divide-border">
+            {upcoming.map((l) => (
+              <div key={l.id} className="flex items-center justify-between py-3.5">
+                <div>
+                  <p className="text-sm font-medium text-ink">{l.name}</p>
+                  <p className="text-xs text-muted">{l.lender ?? TYPE_LABEL[l.type]} · {Number(l.ratePct)}% APR · est. interest <Money cents={roundCentsToDollar(monthlyInterestCents(l.balanceCents, l.ratePct))} />/mo</p>
+                </div>
+                <div className="text-right">
+                  <p className="flex items-center justify-end gap-1.5 text-sm font-medium text-ink"><Calendar size={13} className="text-muted" /> {fmtMonthDay(l.nextPaymentAt!)}</p>
+                  <p className="text-xs text-muted">Balance <Money cents={l.balanceCents} /></p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </>
   );
 }
