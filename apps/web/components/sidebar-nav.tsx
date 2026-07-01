@@ -57,7 +57,7 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
 
     <aside className={clsx(
       "w-[280px] shrink-0 border-r border-border bg-bg flex flex-col",
-      "fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0",
+      "fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:self-start lg:z-auto lg:translate-x-0",
       mobileOpen ? "translate-x-0" : "-translate-x-full",
     )}>
       <div className="flex items-start justify-between px-6 py-6 border-b border-border">

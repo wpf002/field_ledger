@@ -42,7 +42,7 @@ export default async function Dashboard() {
   });
 
   const healthBudgets = budgetStatuses.slice(0, 4);
-  const recent = txns.slice(0, 4);
+  const recent = txns.slice(0, 5);
 
   return (
     <>
@@ -52,67 +52,67 @@ export default async function Dashboard() {
         action={<Link href="/reports" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><FileText size={15} /> Reports</Link>}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCard label="Total Income" value={<Money cents={income} />} icon={<TrendingUp className="text-positive" size={18} />} />
-        <StatCard label="Total Expenses" value={<Money cents={expenses} />} icon={<TrendingDown className="text-negative" size={18} />} />
-        <StatCard label="Net Profit" value={<Money cents={netProfit} />} icon={<DollarSign className="text-positive" size={18} />} />
-        <StatCard label="Total Inventory Value" value={<Money cents={inventoryValue} />} sub={`Across ${valued.length} active lots/items`} variant="primary" icon={<Wallet className="text-white/80" size={18} />} />
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mt-5">
-        <StatCard label="Total Liabilities" value={<Money cents={totalLiabilities} />} icon={<CreditCard className="text-negative" size={18} />} />
+      <div className="grid gap-5 lg:grid-cols-3">
+        {/* Four white stats as a 2×2 block */}
+        <div className="grid grid-cols-2 gap-5 lg:col-span-2">
+          <StatCard label="Total Income" value={<Money cents={income} />} icon={<TrendingUp className="text-positive" size={18} />} />
+          <StatCard label="Total Expenses" value={<Money cents={expenses} />} icon={<TrendingDown className="text-negative" size={18} />} />
+          <StatCard label="Net Profit" value={<Money cents={netProfit} />} icon={<DollarSign className="text-positive" size={18} />} />
+          <StatCard label="Total Liabilities" value={<Money cents={totalLiabilities} />} icon={<CreditCard className="text-negative" size={18} />} />
+        </div>
+        {/* Green inventory card fills the full height of the 2×2 block */}
+        <StatCard fill label="Total Inventory Value" value={<Money cents={inventoryValue} />} sub={`Across ${valued.length} active lots/items`} variant="primary" icon={<Wallet className="text-white/80" size={18} />} />
       </div>
 
       <div className="mt-6">
         <HeroBand title="Estimated Net Worth" subtitle="Calculated based on tracked inventory assets minus outstanding liabilities." value={<Money cents={netWorth} className="text-white" />} />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* left column */}
-        <div className="col-span-2 space-y-6">
-          <Card className="p-6">
-            <SectionHeading title="Cash Flow" />
-            <div className="mt-4">
-              <CashFlowChart data={cashFlow} />
-            </div>
-          </Card>
+      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        {/* Row 1: Cash Flow ↔ Recent Activity (equal height) */}
+        <Card className="p-6 lg:col-span-2">
+          <SectionHeading title="Cash Flow" />
+          <div className="mt-4">
+            <CashFlowChart data={cashFlow} />
+          </div>
+        </Card>
 
-          <Card className="p-6">
-            <SectionHeading title="Budget Health" action={<a href="/budgets" className="text-sm text-muted hover:text-ink">View All</a>} />
-            <div className="mt-4 space-y-4">
-              {healthBudgets.map((b) => <BudgetBar key={b.id} status={b.status} />)}
-              {healthBudgets.length === 0 && <p className="pt-2 text-center text-sm text-muted">No budgets set yet.</p>}
-            </div>
-          </Card>
-        </div>
-
-        {/* right column */}
-        <div className="col-span-1 space-y-6">
-          <Card className="p-6">
-            <SectionHeading title="Recent Activity" />
-            <div className="mt-4 space-y-5">
-              {recent.map((t) => {
-                const positive = t.amountCents > 0n;
-                return (
-                  <div key={t.id} className="flex items-start gap-3">
-                    <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${positive ? "bg-mint text-positive" : "bg-[#F3E3E0] text-negative"}`}>
-                      {positive ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-ink">{t.description}</p>
-                      <p className="text-xs text-muted">{t.account.label} · {fmtDate(t.date)}</p>
-                    </div>
-                    <Money cents={t.amountCents} sign className="text-sm" />
+        <Card className="flex flex-col p-6">
+          <SectionHeading title="Recent Activity" />
+          <div className="mt-4 flex-1 space-y-5">
+            {recent.map((t) => {
+              const positive = t.amountCents > 0n;
+              return (
+                <div key={t.id} className="flex items-start gap-3">
+                  <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${positive ? "bg-mint text-positive" : "bg-[#F3E3E0] text-negative"}`}>
+                    {positive ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">{t.description}</p>
+                    <p className="text-xs text-muted">{t.account.label} · {fmtDate(t.date)}</p>
                   </div>
-                );
-              })}
-            </div>
-          </Card>
+                  <Money cents={t.amountCents} sign className="text-sm" />
+                </div>
+              );
+            })}
+          </div>
+        </Card>
 
-          <Card className="p-6">
-            <SectionHeading icon={<Sparkles size={18} className="text-rust" />} title="AI Insights" action={<button className="rounded-btn border border-border px-3 py-1.5 text-sm text-ink hover:bg-tag/40">Generate</button>} />
-            <p className="mt-6 text-center text-sm text-muted">Click Generate to get AI-powered insights about your operation.</p>
-          </Card>
-        </div>
+        {/* Row 2: Budget Health ↔ AI Insights (equal height) */}
+        <Card className="p-6 lg:col-span-2">
+          <SectionHeading title="Budget Health" action={<a href="/budgets" className="text-sm text-muted hover:text-ink">View All</a>} />
+          <div className="mt-4 space-y-4">
+            {healthBudgets.map((b) => <BudgetBar key={b.id} status={b.status} />)}
+            {healthBudgets.length === 0 && <p className="pt-2 text-center text-sm text-muted">No budgets set yet.</p>}
+          </div>
+        </Card>
+
+        <Card className="flex flex-col p-6">
+          <SectionHeading icon={<Sparkles size={18} className="text-rust" />} title="AI Insights" action={<button className="rounded-btn border border-border px-3 py-1.5 text-sm text-ink hover:bg-tag/40">Generate</button>} />
+          <div className="flex flex-1 items-center justify-center">
+            <p className="py-6 text-center text-sm text-muted">Click Generate to get AI-powered insights about your operation.</p>
+          </div>
+        </Card>
       </div>
     </>
   );

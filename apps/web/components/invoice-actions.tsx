@@ -31,7 +31,7 @@ export function InvoiceActions({ farmId, id, number, status }: { farmId: string;
       {!paid && (
         <button onClick={() => act("pay")} disabled={!!busy} className="inline-flex items-center gap-1.5 rounded-btn bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-deep disabled:opacity-50"><CheckCircle2 size={13} /> {busy === "pay" ? "Recording…" : "Mark Paid"}</button>
       )}
-      {paid && <span className="inline-flex items-center gap-1.5 text-xs text-positive"><CheckCircle2 size={13} /> Paid · payment recorded</span>}
+      {paid && <span className="inline-flex items-center gap-1.5 text-xs text-positive"><CheckCircle2 size={13} /> Paid</span>}
     </div>
   );
 }

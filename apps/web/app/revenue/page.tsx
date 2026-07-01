@@ -83,8 +83,8 @@ export default async function RevenuePage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard label="Total Revenue" value={<Money cents={totalRevenue} />} sub="All recorded income" icon={<DollarSign size={18} className="text-muted" />} />
-        <StatCard label="Invoiced" value={<Money cents={invoiced} />} sub={`${invoices.length} total invoices`} icon={<FileText size={18} className="text-muted" />} />
-        <StatCard label="Paid" value={<Money cents={paid} />} sub={`${paidCount} paid invoices`} variant="mint" icon={<TrendingUp size={18} className="text-positive" />} />
+        <StatCard label="Invoiced" value={<Money cents={invoiced} />} sub={`${invoices.length} total invoice${invoices.length === 1 ? "" : "s"}`} icon={<FileText size={18} className="text-muted" />} />
+        <StatCard label="Paid" value={<Money cents={paid} />} sub={`${paidCount} paid invoice${paidCount === 1 ? "" : "s"}`} variant="mint" icon={<TrendingUp size={18} className="text-positive" />} />
         <StatCard label="Outstanding" value={<Money cents={outstanding} className="text-rust" />} sub="Awaiting payment" variant="cream" icon={<FileWarning size={18} className="text-rust" />} />
       </div>
 
