@@ -17,6 +17,10 @@ COPY packages ./packages
 COPY apps/web ./apps/web
 RUN pnpm --filter @fl/db exec prisma generate
 
+# Next bakes rewrites() destinations at BUILD time, so the API proxy target must
+# be present now (not just at runtime). Override --build-arg API_URL=... per deploy.
+ARG API_URL=https://field-ledger-api-production.up.railway.app
+ENV API_URL=$API_URL
 # Client bundle talks to the API same-origin via the Next proxy (see next.config).
 ENV NEXT_PUBLIC_API_URL=/api
 RUN pnpm --filter @fl/web build
