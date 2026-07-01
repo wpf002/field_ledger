@@ -85,7 +85,7 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1 lg:flex-none">
+      <nav className="flex-1 px-3 py-4 space-y-1">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? path === "/" : path.startsWith(href);
           return (
