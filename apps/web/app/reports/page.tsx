@@ -1,9 +1,10 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, SectionHeading } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { getDemoFarmId } from "@/lib/data";
 import { getReports } from "@/lib/reports";
-import { FileText, Receipt, TrendingUp, Tractor, Download, Lock, ArrowLeft } from "lucide-react";
+import { FileText, Receipt, TrendingUp, Tractor, Download, Lock, ArrowLeft, Landmark, FileDown, Printer } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,24 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ye
           <Lock size={14} /> {year} is a locked accounting period — these figures are final.
         </div>
       )}
+
+      {/* Tax-season export — the ledger is already mapped to Schedule F lines. */}
+      <Card className="mb-6 p-6">
+        <SectionHeading icon={<Landmark size={18} className="text-primary" />} title={`Tax season — send ${year} to TurboTax & H&R Block`} />
+        <p className="mt-2 max-w-2xl text-sm text-muted">Every category is already mapped to its IRS Schedule&nbsp;F line, so filing is a hand-off, not re-entry. Download the file for your tax software, or a worksheet for yourself or your preparer.</p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <a href={`${API}/farms/${farmId}/reports/schedule-f/txf?year=${year}`} className="inline-flex items-center gap-2 rounded-btn bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-deep">
+            <FileDown size={15} /> TurboTax / H&amp;R Block file (.txf)
+          </a>
+          <Link href={`/reports/schedule-f?year=${year}`} className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40">
+            <Printer size={15} /> Printable worksheet (PDF)
+          </Link>
+          <a href={`${API}/farms/${farmId}/reports/schedule-f/export?year=${year}`} className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40">
+            <Download size={15} /> Schedule F worksheet (CSV)
+          </a>
+        </div>
+        <p className="mt-3 text-xs text-muted">In TurboTax or H&amp;R Block desktop, import the <span className="font-medium text-ink">.txf</span> via <span className="font-medium text-ink">File → Import → From Accounting Software</span>. Depreciation is entered separately through your software&rsquo;s asset / Form&nbsp;4562 flow.</p>
+      </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {/* P&L */}

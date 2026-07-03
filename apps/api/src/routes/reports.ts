@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@fl/db";
-import { profitAndLoss, scheduleFSummary, cashFlowStatement, enterpriseProfitability, centsToDecimal, toCsv, type ReportTxn } from "@fl/core";
+import { profitAndLoss, scheduleFSummary, cashFlowStatement, enterpriseProfitability, centsToDecimal, toCsv, scheduleFToTxf, type ReportTxn } from "@fl/core";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -72,6 +72,17 @@ export async function registerReports(app: FastifyInstance) {
       return reply.badRequest("Unknown report type");
     }
     return sendCsv(reply, `${name}.csv`, toCsv(rows));
+  });
+
+  // Schedule F as a TXF file — imports into TurboTax / H&R Block desktop.
+  app.get("/farms/:farmId/reports/schedule-f/txf", async (req, reply) => {
+    const { farmId } = req.params as { farmId: string };
+    const year = Number((req.query as { year?: string }).year ?? new Date().getUTCFullYear());
+    const txns = await loadReportTxns(farmId);
+    const { txf } = scheduleFToTxf(txns, year);
+    reply.header("content-type", "text/plain; charset=utf-8");
+    reply.header("content-disposition", `attachment; filename="schedule-f-${year}.txf"`);
+    return reply.send(Buffer.from(txf, "utf-8"));
   });
 
   // --- User-owned data backup (Invariant 7) ---

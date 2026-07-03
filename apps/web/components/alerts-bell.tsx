@@ -30,8 +30,10 @@ export function AlertsBell() {
 
   const refresh = useCallback(async (id: string) => {
     const res = await fetch(`${API}/farms/${id}/alerts`, { cache: "no-store" });
-    const data = await res.json();
-    setAlerts(data.alerts); setCounts(data.counts);
+    if (!res.ok) return; // a transient API error must not blank the whole shell
+    const data = await res.json().catch(() => null);
+    if (Array.isArray(data?.alerts)) setAlerts(data.alerts);
+    if (data?.counts) setCounts(data.counts);
   }, []);
 
   useEffect(() => {
