@@ -30,7 +30,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
       <Card className="p-10">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="font-serif text-3xl font-bold text-primary">Field &amp; Ledger</h1>
+            <h1 className="font-serif text-3xl font-bold text-primary">Acreflow</h1>
             <p className="text-sm text-muted">{inv.farm.name}</p>
           </div>
           <div className="text-right">
@@ -71,7 +71,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           </div>
         </div>
 
-        <p className="mt-10 text-center text-xs text-muted">Thank you for your business — Field &amp; Ledger</p>
+        <p className="mt-10 text-center text-xs text-muted">Thank you for your business — Acreflow</p>
       </Card>
     </div>
   );

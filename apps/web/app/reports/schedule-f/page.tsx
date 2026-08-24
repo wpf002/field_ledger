@@ -66,7 +66,7 @@ export default async function ScheduleFWorksheet({ searchParams }: { searchParam
         <div className="mt-8 space-y-1 text-xs text-muted">
           <p>Enter each amount on the matching line of Schedule F in TurboTax, H&amp;R Block, or your tax preparer&rsquo;s software.</p>
           {hasDepreciation && <p><span className="font-medium text-ink">Depreciation (line 14)</span> is shown for reference — enter it through your tax software&rsquo;s asset / Form 4562 flow, not as a direct expense.</p>}
-          <p>Figures are from your Field &amp; Ledger ledger; review before filing.</p>
+          <p>Figures are from your Acreflow ledger; review before filing.</p>
         </div>
       </Card>
     </div>

@@ -12,7 +12,7 @@ const MODEL = process.env.FLINT_MODEL || "claude-opus-4-8";
 const hasKey = () => !!process.env.ANTHROPIC_API_KEY;
 const fmt = (cents: string) => formatCentsDisplay(BigInt(cents), { sign: false });
 
-const SYSTEM = `You are Flint, the assistant for the Field & Ledger farm accounting app.
+const SYSTEM = `You are Flint, the assistant for the Acreflow farm accounting app.
 Answer questions about the farm's finances ONLY using the provided tools, which return the user's real ledger data.
 Every number you state MUST come from a tool result — never estimate, guess, or invent figures.
 If the data needed to answer isn't available from the tools, say so plainly. Be concise and practical. Money is in integer cents; format it as dollars.

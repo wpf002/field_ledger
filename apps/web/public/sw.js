@@ -1,4 +1,4 @@
-/* Field & Ledger service worker — Phase 8 offline-first.
+/* Acreflow service worker — Phase 8 offline-first.
  * Registered in PRODUCTION ONLY (see offline-sync.tsx) — a SW intercepting
  * Next dev's HMR/RSC traffic breaks it. Goals: installability + a loadable app
  * shell in the field. We never touch the API origin (:4000) or non-GET requests

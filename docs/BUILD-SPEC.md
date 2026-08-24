@@ -1,4 +1,4 @@
-# Field & Ledger — Build Spec (Claude Code)
+# Acreflow — Build Spec (Claude Code)
 
 Self-contained build brief. Assume no prior context. This is an existing,
 mostly-built farm/ranch accounting app (originally generated on Base44) that is

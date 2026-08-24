@@ -13,7 +13,7 @@ describe("scheduleFToTxf", () => {
   it("emits a v042 header with software + date", () => {
     const { txf } = scheduleFToTxf([txn("feed", -10000n)], 2025, { date: DATE });
     const lines = txf.split("\r\n");
-    expect(lines.slice(0, 4)).toEqual(["V042", "AField & Ledger", "D04/15/2025", "^"]);
+    expect(lines.slice(0, 4)).toEqual(["V042", "AAcreflow", "D04/15/2025", "^"]);
   });
 
   it("groups by TXF ref with positive magnitudes; categories sharing a ref merge", () => {

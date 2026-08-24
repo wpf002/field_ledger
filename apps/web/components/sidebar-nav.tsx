@@ -48,7 +48,7 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
     {/* Mobile top bar — hidden on lg+ where the sidebar is always visible. */}
     <header className="lg:hidden fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-bg px-4">
       <button onClick={() => setMobileOpen(true)} aria-label="Open menu" className="text-ink"><Menu size={22} /></button>
-      <h1 className="font-serif text-xl font-bold text-primary">Field &amp; Ledger</h1>
+      <h1 className="font-serif text-xl font-bold text-primary">Acreflow</h1>
       <AlertsBell />
     </header>
 
@@ -62,7 +62,7 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
     )}>
       <div className="flex items-start justify-between px-6 py-6 border-b border-border">
         <div>
-          <h1 className="font-serif text-2xl font-bold text-primary">Field &amp; Ledger</h1>
+          <h1 className="font-serif text-2xl font-bold text-primary">Acreflow</h1>
           {/* Farm switcher */}
           <div className="relative mt-1">
             <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink">

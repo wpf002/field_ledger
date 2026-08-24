@@ -1,4 +1,4 @@
-# Field & Ledger
+# Acreflow
 
 Accounting and financial planning for farmers and ranchers — ledger, inventory,
 liabilities, leases, budgets, planning, insights, and an AI assistant.

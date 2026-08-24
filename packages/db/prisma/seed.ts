@@ -14,7 +14,7 @@ import {
 import { SCHEDULE_F } from "@fl/core";
 
 /**
- * Seeds the demo "Field & Ledger" farm mirroring the reference screenshots,
+ * Seeds the demo "Acreflow" farm mirroring the reference screenshots,
  * with all money as integer cents (Invariant 1). Idempotent: wipes the demo
  * farm's rows first so `pnpm db:seed` can be re-run. Run: pnpm db:seed
  *
@@ -64,7 +64,7 @@ async function main() {
   await prisma.user.deleteMany({});           // users are not farm-scoped
   await prisma.commodityPrice.deleteMany({}); // global quote store
 
-  const farm = await prisma.farm.create({ data: { name: "Field & Ledger Demo Farm" } });
+  const farm = await prisma.farm.create({ data: { name: "Acreflow Demo Farm" } });
 
   // --- chart of accounts from Schedule F (Invariant 6) ---
   for (const l of Object.values(SCHEDULE_F)) {
@@ -254,8 +254,8 @@ async function main() {
   // --- users + memberships (Phase 8 auth). Owner has full access to both
   //     farms; Viewer is read-only on the main farm. ---
   const demoPassword = hashPassword("demo1234"); // shared demo credential
-  const owner = await prisma.user.create({ data: { email: "owner@fieldandledger.test", name: "Sam Rivera", passwordHash: demoPassword } });
-  const viewer = await prisma.user.create({ data: { email: "viewer@fieldandledger.test", name: "Jordan Bell", passwordHash: demoPassword } });
+  const owner = await prisma.user.create({ data: { email: "owner@acreflow.test", name: "Sam Rivera", passwordHash: demoPassword } });
+  const viewer = await prisma.user.create({ data: { email: "viewer@acreflow.test", name: "Jordan Bell", passwordHash: demoPassword } });
   await prisma.membership.create({ data: { userId: owner.id, farmId: farm.id, role: Role.OWNER } });
   await prisma.membership.create({ data: { userId: owner.id, farmId: farm2.id, role: Role.OWNER } });
   await prisma.membership.create({ data: { userId: viewer.id, farmId: farm.id, role: Role.VIEWER } });

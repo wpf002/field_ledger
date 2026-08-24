@@ -30,7 +30,7 @@ export type TxfResult = { txf: string; mappedRefs: number; unmappedCents: bigint
 /** Build a TXF v042 file of `year`'s Schedule F totals grouped by TXF ref number.
  *  Amounts are positive magnitudes (each ref is inherently income or expense). */
 export function scheduleFToTxf(txns: ReportTxn[], year: number, opts: { software?: string; date?: Date } = {}): TxfResult {
-  const software = opts.software ?? "Field & Ledger";
+  const software = opts.software ?? "Acreflow";
   const asOf = opts.date ?? new Date();
 
   const byRef = new Map<number, bigint>();

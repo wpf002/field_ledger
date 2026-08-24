@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Field & Ledger one-shot local bootstrap.
+# Acreflow one-shot local bootstrap.
 echo "==> Checking toolchain"
 command -v pnpm >/dev/null || { echo "Install pnpm: npm i -g pnpm"; exit 1; }
 command -v node >/dev/null || { echo "Install Node 20+"; exit 1; }

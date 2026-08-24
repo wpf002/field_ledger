@@ -1,6 +1,6 @@
 {
-  "name": "Field & Ledger",
-  "short_name": "Field & Ledger",
+  "name": "Acreflow",
+  "short_name": "Acreflow",
   "description": "Farm & ranch accounting and financial planning — works in the field, syncs when you're back.",
   "start_url": "/",
   "display": "standalone",

@@ -101,7 +101,7 @@ export async function registerReports(app: FastifyInstance) {
       prisma.financialGoal.findMany({ where: { farmId } }),
       prisma.productionPlan.findMany({ where: { farmId } }),
     ]);
-    reply.header("content-disposition", `attachment; filename="field-and-ledger-backup.json"`);
+    reply.header("content-disposition", `attachment; filename="acreflow-backup.json"`);
     return { farm, accounts, transactions, inventory, liabilities, leases, invoices, customers, budgets, goals, plans };
   });
 

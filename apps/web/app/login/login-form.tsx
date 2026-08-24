@@ -6,8 +6,8 @@ import { Sprout, ShieldCheck, Eye } from "lucide-react";
 
 const DEMO_PASSWORD = "demo1234"; // public demo credential
 const DEMO = [
-  { email: "owner@fieldandledger.test", name: "Sam Rivera", role: "Owner", desc: "Full access — add, edit, and post transactions.", icon: ShieldCheck },
-  { email: "viewer@fieldandledger.test", name: "Jordan Bell", role: "Viewer", desc: "Read-only — can view everything, but cannot change data.", icon: Eye },
+  { email: "owner@acreflow.test", name: "Sam Rivera", role: "Owner", desc: "Full access — add, edit, and post transactions.", icon: ShieldCheck },
+  { email: "viewer@acreflow.test", name: "Jordan Bell", role: "Viewer", desc: "Read-only — can view everything, but cannot change data.", icon: Eye },
 ];
 
 export function LoginForm() {
@@ -27,7 +27,7 @@ export function LoginForm() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-card bg-primary text-white"><Sprout size={24} /></div>
-          <h1 className="font-serif text-3xl font-bold text-primary">Field &amp; Ledger</h1>
+          <h1 className="font-serif text-3xl font-bold text-primary">Acreflow</h1>
           <p className="mt-1 text-sm text-muted">Sign in to your farm</p>
         </div>
         <Card className="p-6">

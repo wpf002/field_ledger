@@ -1,4 +1,4 @@
-// Field & Ledger data model.
+// Acreflow data model.
 // INVARIANTS baked in:
 //  1. Money is integer cents -> BigInt columns named *Cents.
 //  2. Audit trail (AuditLog) + period locking (AccountingPeriod).

@@ -9,8 +9,8 @@ const serif = Fraunces({ subsets: ["latin"], variable: "--font-serif", weight: [
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Field & Ledger",
-  description: "Accounting and financial planning for farmers and ranchers.",
+  title: "Acreflow",
+  description: "Run your land like a business — financial clarity for ranches and farms.",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
 };

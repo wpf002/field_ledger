@@ -1,4 +1,4 @@
-# Deploying Field & Ledger (Railway)
+# Deploying Acreflow (Railway)
 
 The app runs as **three Railway services** in one project: managed **Postgres**,
 the Fastify **API**, and the Next.js **web** app. Both apps build from
@@ -50,5 +50,5 @@ railway up --service field-ledger-web --detach
 ```
 
 ## Demo accounts
-`owner@fieldandledger.test` (full access) / `viewer@fieldandledger.test`
+`owner@acreflow.test` (full access) / `viewer@acreflow.test`
 (read-only) — password **demo1234**.
