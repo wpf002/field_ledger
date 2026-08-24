@@ -1,12 +1,13 @@
 import clsx from "clsx";
 
-type Variant = "default" | "primary" | "brown" | "mint" | "cream";
+type Variant = "default" | "primary" | "brown" | "mint" | "cream" | "gold";
 const surfaces: Record<Variant, string> = {
   default: "bg-surface text-ink",
   primary: "bg-primary text-white",
   brown: "bg-brown text-white",
   mint: "bg-mint text-ink",
   cream: "bg-cream-tint text-ink",
+  gold: "bg-[#F6EAC6] text-ink", // soft Wheat Gold tint
 };
 
 export function StatCard({

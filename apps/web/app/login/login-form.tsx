@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { login } from "./actions";
-import { Sprout, ShieldCheck, Eye } from "lucide-react";
+import { ShieldCheck, Eye } from "lucide-react";
 
 const DEMO_PASSWORD = "demo1234"; // public demo credential
 const DEMO = [
@@ -26,7 +27,7 @@ export function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-card bg-primary text-white"><Sprout size={24} /></div>
+          <BrandMark size={48} className="mx-auto mb-3" />
           <h1 className="font-serif text-3xl font-bold text-primary">Acreflow</h1>
           <p className="mt-1 text-sm text-muted">Sign in to your farm</p>
         </div>

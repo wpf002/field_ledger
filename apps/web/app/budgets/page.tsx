@@ -43,7 +43,7 @@ export default async function BudgetsPage() {
         <StatCard label="Monthly Budgets" value={<Money cents={monthlyTotal} />} sub={`${monthly.length} categories`} icon={<CalendarDays size={18} className="text-muted" />} />
         <StatCard label="Annual Budgets" value={<Money cents={annualTotal} />} sub={`${annual.length} categories`} icon={<CalendarRange size={18} className="text-muted" />} />
         <StatCard label="Over Budget" value={`${overCount}`} sub={overCount === 1 ? "category needs attention" : "categories need attention"} variant={overCount > 0 ? "cream" : "default"} icon={<AlertTriangle size={18} className="text-rust" />} />
-        <StatCard label="Financial Goals" value={`${goals.length}`} sub="Active targets" variant="mint" icon={<Target size={18} className="text-positive" />} />
+        <StatCard label="Financial Goals" value={`${goals.length}`} sub="Active targets" variant="gold" icon={<Target size={18} className="text-gold" />} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
@@ -59,7 +59,7 @@ export default async function BudgetsPage() {
         {/* Financial goals */}
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="flex items-center gap-2 font-serif text-xl font-semibold text-ink"><Target size={18} className="text-positive" /> Financial Goals</h3>
+            <h3 className="flex items-center gap-2 font-serif text-xl font-semibold text-ink"><Target size={18} className="text-gold" /> Financial Goals</h3>
             {canEdit && <AddGoalButton farmId={farmId} />}
           </div>
           <div className="space-y-4">
@@ -73,7 +73,7 @@ export default async function BudgetsPage() {
                     <span className="font-serif text-2xl font-bold text-ink"><Money cents={g.currentCents} /></span>
                     <span className="text-sm text-muted">of <Money cents={g.targetCents} /></span>
                   </div>
-                  <div className="mt-3"><ProgressBar pct={pct} /></div>
+                  <div className="mt-3"><ProgressBar pct={pct} tone="gold" /></div>
                   <div className="mt-1.5 flex items-center justify-between text-xs text-muted">
                     <span>{pct}% Complete</span>
                     {g.dueAt && <span>Due: {monthYear(g.dueAt)}</span>}
