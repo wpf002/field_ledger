@@ -4,8 +4,8 @@
   "description": "Farm & ranch accounting and financial planning — works in the field, syncs when you're back.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f2efe6",
-  "theme_color": "#2f3d29",
+  "background_color": "#F4F1E6",
+  "theme_color": "#1F4D3B",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }

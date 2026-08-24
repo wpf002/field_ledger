@@ -13,6 +13,7 @@ const config: Config = {
         primary: { DEFAULT: "var(--primary)", deep: "var(--primary-deep)" },
         brown: "var(--brown)",
         rust: "var(--rust)",
+        gold: "var(--gold)",
         ink: "var(--text)",
         muted: "var(--text-muted)",
         positive: "var(--positive)",

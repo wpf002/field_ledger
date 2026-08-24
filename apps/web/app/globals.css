@@ -3,21 +3,23 @@
 @tailwind utilities;
 
 :root {
-  --bg: #F4F1E9;
+  /* Acreflow brand palette: Forest Green + Wheat Gold + Barn Red on warm Cream/Charcoal. */
+  --bg: #F4F1E6;            /* Warm Cream */
   --surface: #FFFFFF;
-  --surface-sunken: #EFEBE0;
-  --border: #E4DFD2;
-  --primary: #34492E;
-  --primary-deep: #2A3B25;
+  --surface-sunken: #EFEBDF;
+  --border: #E4DFD1;
+  --primary: #1F4D3B;      /* Deep Forest Green */
+  --primary-deep: #163A2C;
   --brown: #6B4327;
-  --rust: #B5701F;
-  --text: #2B2B26;
+  --rust: #A33A2A;         /* Barn Red */
+  --gold: #D4A437;         /* Wheat Gold */
+  --text: #2C2C2C;         /* Charcoal */
   --text-muted: #76705F;
   --positive: #3F7A3A;
   --negative: #9E2B2B;
   --tag-bg: #ECE8DC;
-  --mint: #E8F0E4;
-  --cream-tint: #F6EFDD;
+  --mint: #E6EFE3;
+  --cream-tint: #F7EFD9;
   --radius-card: 16px;
   --radius-btn: 10px;
   --radius-pill: 999px;

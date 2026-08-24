@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Bitter, Inter } from "next/font/google";
 import "./globals.css";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { OfflineSync } from "@/components/offline-sync";
 import { getCurrentFarm } from "@/lib/session";
 
-const serif = Fraunces({ subsets: ["latin"], variable: "--font-serif", weight: ["500", "600", "700"] });
+// Acreflow brand type: Bitter (serif headings) + Inter (body).
+const serif = Bitter({ subsets: ["latin"], variable: "--font-serif", weight: ["500", "600", "700"] });
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#2f3d29",
+  themeColor: "#1F4D3B",
   width: "device-width",
   initialScale: 1,
 };
