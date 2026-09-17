@@ -58,12 +58,46 @@ async function chatDeterministic(farmId: string, message: string) {
   return { answer, mode: "deterministic" as const, tool: intent };
 }
 
+/**
+ * The conversation with one cache breakpoint on its newest block.
+ *
+ * Every step of the tool loop re-sends everything before it — tools, system, the
+ * question, and each earlier tool call and result. Without a breakpoint all of that
+ * is billed at full input price on every step. With one on the newest block, the
+ * next step reads it back at ~0.1x.
+ *
+ * The marker moves rather than accumulates: markers are not part of the cached
+ * bytes, so moving one invalidates nothing, and leaving each step's marker in place
+ * would pass the API's four-breakpoint limit on a long loop. History is copied, not
+ * mutated, so the stored transcript never carries a marker.
+ *
+ * Break-even: a two-step answer pays a small write it never reads; each step past
+ * that reads the whole prefix back. It comes out ahead once more than about a
+ * quarter of questions take three or more steps.
+ */
+function withTailBreakpoint(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  const last = messages[messages.length - 1];
+  if (!last || typeof last.content === "string" || last.content.length === 0) return messages;
+  const blocks = [...last.content];
+  const tail = blocks[blocks.length - 1]!;
+  blocks[blocks.length - 1] = { ...tail, cache_control: { type: "ephemeral" } } as typeof tail;
+  return [...messages.slice(0, -1), { ...last, content: blocks }];
+}
+
 /** Grounded answer via Claude tool-calling over the same ledger tools. */
 async function chatClaude(farmId: string, message: string) {
   const client = new Anthropic();
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: message }];
+  // Block form from the start, so the question renders identically whether or not
+  // it currently carries the breakpoint.
+  const messages: Anthropic.MessageParam[] = [{ role: "user", content: [{ type: "text", text: message }] }];
   for (let i = 0; i < 6; i++) {
-    const res = await client.messages.create({ model: MODEL, max_tokens: 8000, system: SYSTEM, tools: ANTHROPIC_TOOLS, messages });
+    const res = await client.messages.create({
+      model: MODEL,
+      max_tokens: 8000,
+      system: SYSTEM,
+      tools: ANTHROPIC_TOOLS,
+      messages: withTailBreakpoint(messages),
+    });
     if (res.stop_reason !== "tool_use") {
       const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("");
       return { answer: text, mode: "claude" as const, model: MODEL };
