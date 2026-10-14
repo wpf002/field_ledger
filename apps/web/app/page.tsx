@@ -4,7 +4,7 @@ import { Money } from "@/components/ui/money";
 import { Card, SectionHeading } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { CashFlowChart, type CashFlowDatum } from "@/components/charts/cash-flow-chart";
-import { prisma } from "@fl/db";
+import { prisma, pnlWhere } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { getValuedInventory, inventoryTotals } from "@/lib/valuation";
 import { getBudgetStatuses } from "@/lib/budgets";
@@ -19,7 +19,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
 export default async function Dashboard() {
   const farmId = await getDemoFarmId();
   const [txns, valued, liabilities, budgetStatuses] = await Promise.all([
-    prisma.transaction.findMany({ where: { farmId }, orderBy: { date: "desc" }, include: { account: true } }),
+    prisma.transaction.findMany({ where: { farmId, ...pnlWhere }, orderBy: { date: "desc" }, include: { account: true } }),
     getValuedInventory(farmId),
     prisma.liability.findMany({ where: { farmId } }),
     getBudgetStatuses(farmId),

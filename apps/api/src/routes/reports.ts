@@ -1,11 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@fl/db";
+import { prisma, pnlWhere } from "@fl/db";
 import { profitAndLoss, scheduleFSummary, cashFlowStatement, enterpriseProfitability, centsToDecimal, toCsv, scheduleFToTxf, type ReportTxn } from "@fl/core";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 async function loadReportTxns(farmId: string): Promise<ReportTxn[]> {
-  const txns = await prisma.transaction.findMany({ where: { farmId }, include: { account: true } });
+  const txns = await prisma.transaction.findMany({ where: { farmId, ...pnlWhere }, include: { account: true } });
   return txns.map((t) => ({ amountCents: t.amountCents, date: t.date, account: { code: t.account.code, label: t.account.label, kind: t.account.kind, scheduleFCode: t.account.scheduleFCode } }));
 }
 
@@ -91,7 +91,7 @@ export async function registerReports(app: FastifyInstance) {
     const [farm, accounts, transactions, inventory, liabilities, leases, invoices, customers, budgets, goals, plans] = await Promise.all([
       prisma.farm.findUnique({ where: { id: farmId } }),
       prisma.account.findMany({ where: { farmId } }),
-      prisma.transaction.findMany({ where: { farmId }, include: { account: true } }),
+      prisma.transaction.findMany({ where: { farmId, ...pnlWhere }, include: { account: true } }),
       prisma.inventoryItem.findMany({ where: { farmId } }),
       prisma.liability.findMany({ where: { farmId } }),
       prisma.lease.findMany({ where: { farmId } }),
@@ -107,7 +107,7 @@ export async function registerReports(app: FastifyInstance) {
 
   app.get("/farms/:farmId/export/transactions.csv", async (req, reply) => {
     const { farmId } = req.params as { farmId: string };
-    const txns = await prisma.transaction.findMany({ where: { farmId }, orderBy: { date: "desc" }, include: { account: true } });
+    const txns = await prisma.transaction.findMany({ where: { farmId, ...pnlWhere }, orderBy: { date: "desc" }, include: { account: true } });
     const rows: (string | number)[][] = [["Date", "Description", "Category", "Schedule F", "Amount"]];
     for (const t of txns) rows.push([t.date.toISOString().slice(0, 10), t.description, t.account.label, t.account.scheduleFCode, centsToDecimal(t.amountCents)]);
     return sendCsv(reply, "transactions.csv", toCsv(rows));

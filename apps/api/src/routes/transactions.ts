@@ -56,6 +56,9 @@ export async function registerTransactions(app: FastifyInstance) {
         description: parsed.data.description,
         accountId: account.id,
         amountCents: deserializeCents(parsed.data.amountCents),
+        // Manual entries are cash-basis: cash moves on the transaction date.
+        cashDate: parsed.data.date,
+        cashEffectCents: deserializeCents(parsed.data.amountCents),
         vendor: parsed.data.vendor,
         relatedInventoryId: parsed.data.relatedInventoryId,
         relatedLabel: (req.body as { relatedLabel?: string }).relatedLabel,
@@ -85,13 +88,18 @@ export async function registerTransactions(app: FastifyInstance) {
       accountId = account.id;
     }
 
+    // Keep cash-basis rows in step: if cash moved on the old date/amount, it moves on the new one.
+    const amountCents = d.amountCents != null ? deserializeCents(d.amountCents) : undefined;
+    const cashBasis = existing.cashDate?.getTime() === existing.date.getTime();
     const updated = await prisma.transaction.update({
       where: { id },
       data: {
         date: d.date,
+        cashDate: cashBasis && d.date ? d.date : undefined,
+        cashEffectCents: amountCents != null && existing.cashEffectCents === existing.amountCents ? amountCents : undefined,
         description: d.description,
         accountId,
-        amountCents: d.amountCents != null ? deserializeCents(d.amountCents) : undefined,
+        amountCents,
         relatedLabel: d.relatedLabel,
       },
     });

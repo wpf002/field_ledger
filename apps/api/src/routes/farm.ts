@@ -12,7 +12,7 @@ export async function registerFarm(app: FastifyInstance) {
   app.get("/farms/:farmId/accounts", async (req) => {
     const { farmId } = req.params as { farmId: string };
     return prisma.account.findMany({
-      where: { farmId },
+      where: { farmId, kind: { not: "BALANCE" } },
       orderBy: [{ kind: "asc" }, { label: "asc" }],
       select: { id: true, code: true, label: true, kind: true, scheduleFCode: true },
     });

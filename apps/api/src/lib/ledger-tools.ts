@@ -4,7 +4,7 @@
  * integer-cent strings. Both the deterministic router and the Claude tool-call
  * path answer ONLY from these results — no figure is ever invented.
  */
-import { prisma } from "@fl/db";
+import { prisma, pnlWhere } from "@fl/db";
 import {
   sumCents, obligationsInWindow, valueInventoryItem, latestPriceCents, budgetStatus,
   scheduleFSummary, evaluateAlerts, mergeSettings, type ReportTxn, type AlertInputs,
@@ -21,7 +21,7 @@ async function valuedInventory(farmId: string) {
 
 export async function financialSummary(farmId: string) {
   const [txns, valued, liabilities] = await Promise.all([
-    prisma.transaction.findMany({ where: { farmId } }),
+    prisma.transaction.findMany({ where: { farmId, ...pnlWhere } }),
     valuedInventory(farmId),
     prisma.liability.findMany({ where: { farmId } }),
   ]);
@@ -69,7 +69,7 @@ export async function marketableInventory(farmId: string) {
 export async function budgetStatuses(farmId: string) {
   const [budgets, txns, accounts] = await Promise.all([
     prisma.budget.findMany({ where: { farmId } }),
-    prisma.transaction.findMany({ where: { farmId }, include: { account: true } }),
+    prisma.transaction.findMany({ where: { farmId, ...pnlWhere }, include: { account: true } }),
     prisma.account.findMany({ where: { farmId } }),
   ]);
   const labelByCode = new Map(accounts.map((a) => [a.code, a.label]));
@@ -82,7 +82,7 @@ export async function budgetStatuses(farmId: string) {
 }
 
 export async function scheduleFReport(farmId: string, year = new Date().getUTCFullYear()) {
-  const txns = await prisma.transaction.findMany({ where: { farmId }, include: { account: true } });
+  const txns = await prisma.transaction.findMany({ where: { farmId, ...pnlWhere }, include: { account: true } });
   const rt: ReportTxn[] = txns.map((t) => ({ amountCents: t.amountCents, date: t.date, account: { code: t.account.code, label: t.account.label, kind: t.account.kind, scheduleFCode: t.account.scheduleFCode } }));
   const sf = scheduleFSummary(rt, year);
   return { year, grossIncomeCents: sf.totalIncomeCents.toString(), totalExpenseCents: sf.totalExpenseCents.toString(), netFarmProfitCents: sf.netFarmProfitCents.toString(), incomeLines: sf.income.map((l) => ({ line: l.line, label: l.label, amountCents: l.totalCents.toString() })), expenseLines: sf.expenses.map((l) => ({ line: l.line, label: l.label, amountCents: l.totalCents.toString() })) };

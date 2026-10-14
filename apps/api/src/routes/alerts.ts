@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@fl/db";
+import { prisma, pnlWhere } from "@fl/db";
 import { z } from "zod";
 import { evaluateAlerts, mergeSettings, budgetStatus, type AlertInputs } from "@fl/core";
 
@@ -7,7 +7,7 @@ import { evaluateAlerts, mergeSettings, budgetStatus, type AlertInputs } from "@
 async function budgetActuals(farmId: string): Promise<AlertInputs["budgetActuals"]> {
   const [budgets, txns, accounts] = await Promise.all([
     prisma.budget.findMany({ where: { farmId } }),
-    prisma.transaction.findMany({ where: { farmId }, include: { account: true } }),
+    prisma.transaction.findMany({ where: { farmId, ...pnlWhere }, include: { account: true } }),
     prisma.account.findMany({ where: { farmId } }),
   ]);
   const labelByCode = new Map(accounts.map((a) => [a.code, a.label]));

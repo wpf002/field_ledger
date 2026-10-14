@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@fl/db";
 import { z } from "zod";
-import { amortizationSchedule, nextPaymentSplit, obligationsInWindow, addPeriod, type Freq, type LiabilityLike, type LeaseLike } from "@fl/core";
+import { amortizationSchedule, nextPaymentSplit, obligationsInWindow, addPeriod, type Freq, type LiabilityLike, type LeaseLike, PRINCIPAL_ACCOUNT } from "@fl/core";
 
 const asFreq = (s: string): Freq => (["monthly", "quarterly", "semiannual", "annual"].includes(s) ? (s as Freq) : "monthly");
 
@@ -56,8 +56,19 @@ export async function registerObligations(app: FastifyInstance) {
         farmId, date: l.nextPaymentAt, accountId: account.id,
         description: `Loan payment — ${l.name} (interest)`,
         amountCents: -split.interestCents, source: "auto_post", liabilityId: l.id,
+        cashDate: l.nextPaymentAt, cashEffectCents: -split.interestCents,
       },
     });
+    // Principal is a balance-sheet cash flow (no P&L impact); record it so cash reconciles.
+    const principalAccount = await prisma.account.findUnique({ where: { farmId_code: { farmId, code: PRINCIPAL_ACCOUNT } } });
+    if (principalAccount && split.principalCents > 0n) {
+      await prisma.transaction.create({
+        data: {
+          farmId, date: l.nextPaymentAt, accountId: principalAccount.id, description: `Loan payment — ${l.name} (principal)`,
+          amountCents: -split.principalCents, cashDate: l.nextPaymentAt, cashEffectCents: -split.principalCents, source: "auto_post", liabilityId: l.id,
+        },
+      });
+    }
     const updated = await prisma.liability.update({
       where: { id }, data: { balanceCents: l.balanceCents - split.principalCents, nextPaymentAt: addPeriod(l.nextPaymentAt, asFreq(l.paymentFreq)) },
     });
@@ -79,7 +90,7 @@ export async function registerObligations(app: FastifyInstance) {
     if (!account) return reply.badRequest("Missing account rent_lease_land");
 
     const tx = await prisma.transaction.create({
-      data: { farmId, date: l.nextPaymentAt, accountId: account.id, description: `Lease payment — ${l.name}`, amountCents: -l.annualRentCents, source: "auto_post", leaseId: l.id },
+      data: { farmId, date: l.nextPaymentAt, accountId: account.id, description: `Lease payment — ${l.name}`, amountCents: -l.annualRentCents, cashDate: l.nextPaymentAt, cashEffectCents: -l.annualRentCents, source: "auto_post", leaseId: l.id },
     });
     const updated = await prisma.lease.update({ where: { id }, data: { nextPaymentAt: addPeriod(l.nextPaymentAt, asFreq(l.paymentFreq)) } });
     await prisma.auditLog.create({ data: { farmId, action: "post", entity: "Transaction", entityId: tx.id, after: { leaseId: l.id, amountCents: l.annualRentCents.toString() } } });

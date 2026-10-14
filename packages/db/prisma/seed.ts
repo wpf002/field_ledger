@@ -2,6 +2,7 @@ import "./load-env.js"; // must be first — loads root .env before Prisma clien
 import {
   prisma,
   hashPassword,
+  wipeFarm,
   AccountKind,
   InventoryCategory,
   LiabilityType,
@@ -11,7 +12,15 @@ import {
   BudgetPeriod,
   Role,
 } from "../src/index.js";
-import { SCHEDULE_F } from "@fl/core";
+import { SCHEDULE_F, BALANCE_ACCOUNTS, type ScheduleFLine } from "@fl/core";
+
+/** Income-statement section for a Schedule F category (mirrors the v2 migration backfill). */
+const sectionOf = (l: ScheduleFLine) =>
+  l.kind === "income" ? "REV"
+  : l.code.startsWith("interest_") ? "INT"
+  : l.code === "depreciation" ? "DEP"
+  : l.code === "insurance" || l.code === "other_expense" ? "OVH"
+  : "COP";
 
 /**
  * Seeds the demo "Acreflow" farm mirroring the reference screenshots,
@@ -37,30 +46,16 @@ const LABEL_OVERRIDES: Record<string, string> = {
   fertilizer: "Fertilizer",
 };
 
+async function addBalanceAccounts(farmId: string) {
+  for (const b of BALANCE_ACCOUNTS) {
+    await prisma.account.create({ data: { farmId, code: b.code, label: b.label, kind: AccountKind.BALANCE, scheduleFCode: "", section: "CASHBS", statementLine: b.statementLine, cashFlowClass: b.cashFlowClass } });
+  }
+}
+
 async function main() {
   // --- reset demo data (FK-safe order) ---
   const existing = await prisma.farm.findMany({ select: { id: true } });
-  for (const { id } of existing) {
-    await prisma.transaction.deleteMany({ where: { farmId: id } });
-    await prisma.importBatch.deleteMany({ where: { farmId: id } });
-    await prisma.invoiceLineItem.deleteMany({ where: { invoice: { farmId: id } } });
-    await prisma.invoice.deleteMany({ where: { farmId: id } });
-    await prisma.customer.deleteMany({ where: { farmId: id } });
-    await prisma.inventoryItem.deleteMany({ where: { farmId: id } });
-    await prisma.liability.deleteMany({ where: { farmId: id } });
-    await prisma.lease.deleteMany({ where: { farmId: id } });
-    await prisma.budget.deleteMany({ where: { farmId: id } });
-    await prisma.financialGoal.deleteMany({ where: { farmId: id } });
-    await prisma.productionPlan.deleteMany({ where: { farmId: id } });
-    await prisma.alert.deleteMany({ where: { farmId: id } });
-    await prisma.auditLog.deleteMany({ where: { farmId: id } });
-    await prisma.alertSetting.deleteMany({ where: { farmId: id } });
-    await prisma.alertDismissal.deleteMany({ where: { farmId: id } });
-    await prisma.accountingPeriod.deleteMany({ where: { farmId: id } });
-    await prisma.account.deleteMany({ where: { farmId: id } });
-    await prisma.membership.deleteMany({ where: { farmId: id } });
-    await prisma.farm.delete({ where: { id } });
-  }
+  for (const { id } of existing) await wipeFarm(prisma, id);
   await prisma.user.deleteMany({});           // users are not farm-scoped
   await prisma.commodityPrice.deleteMany({}); // global quote store
 
@@ -75,9 +70,11 @@ async function main() {
         label: LABEL_OVERRIDES[l.code] ?? l.label,
         kind: l.kind === "income" ? AccountKind.INCOME : AccountKind.EXPENSE,
         scheduleFCode: l.code,
+        section: sectionOf(l),
       },
     });
   }
+  await addBalanceAccounts(farm.id);
   const acct = async (code: string) =>
     (await prisma.account.findUniqueOrThrow({ where: { farmId_code: { farmId: farm.id, code } } })).id;
 
@@ -127,6 +124,17 @@ async function main() {
     },
   });
 
+  // --- enterprises (v2): every revenue and direct-cost row belongs to one ---
+  const ent = {
+    LIV: await prisma.enterprise.create({ data: { farmId: farm.id, code: "LIV", name: "Cattle", type: "livestock" } }),
+    CRP: await prisma.enterprise.create({ data: { farmId: farm.id, code: "CRP", name: "Crops", type: "crop" } }),
+    OVH: await prisma.enterprise.create({ data: { farmId: farm.id, code: "OVH", name: "Overhead", type: "overhead" } }),
+  };
+  const ENTERPRISE_OF: Record<string, keyof typeof ent> = {
+    livestock_sales_raised: "LIV", feed: "LIV", veterinary: "LIV",
+    crop_sales: "CRP", fertilizer: "CRP", seeds_plants: "CRP",
+  };
+
   // --- transactions (signed cents: income +, expense -) ---
   const tx = [
     { date: "2026-03-14", description: "Sold 5 head of cattle at Weatherford Cattle Auction", code: "livestock_sales_raised", amountCents: 673065n, relatedInventoryId: angus.id },
@@ -148,6 +156,8 @@ async function main() {
       data: {
         farmId: farm.id, date: new Date(t.date), description: t.description,
         accountId: await acct(t.code), amountCents: t.amountCents,
+        cashDate: new Date(t.date), cashEffectCents: t.amountCents,
+        enterpriseId: ent[ENTERPRISE_OF[t.code] ?? "OVH"].id,
         relatedInventoryId: "relatedInventoryId" in t ? t.relatedInventoryId : null,
         relatedLabel: "relatedLabel" in t ? t.relatedLabel : null,
       },
@@ -244,12 +254,13 @@ async function main() {
   // --- second farm (multi-farm demo for the farm switcher) ---
   const farm2 = await prisma.farm.create({ data: { name: "River Bend Farm" } });
   for (const l of Object.values(SCHEDULE_F)) {
-    await prisma.account.create({ data: { farmId: farm2.id, code: l.code, label: LABEL_OVERRIDES[l.code] ?? l.label, kind: l.kind === "income" ? AccountKind.INCOME : AccountKind.EXPENSE, scheduleFCode: l.code } });
+    await prisma.account.create({ data: { farmId: farm2.id, code: l.code, label: LABEL_OVERRIDES[l.code] ?? l.label, kind: l.kind === "income" ? AccountKind.INCOME : AccountKind.EXPENSE, scheduleFCode: l.code, section: sectionOf(l) } });
   }
+  await addBalanceAccounts(farm2.id);
   await prisma.accountingPeriod.create({ data: { farmId: farm2.id, year: 2026, locked: false } });
   const acct2 = async (code: string) => (await prisma.account.findUniqueOrThrow({ where: { farmId_code: { farmId: farm2.id, code } } })).id;
-  await prisma.transaction.create({ data: { farmId: farm2.id, date: new Date("2026-05-01"), description: "Corn sales — first load", accountId: await acct2("crop_sales"), amountCents: 820000n } });
-  await prisma.transaction.create({ data: { farmId: farm2.id, date: new Date("2026-05-03"), description: "Seed corn", accountId: await acct2("seeds_plants"), amountCents: -310000n } });
+  await prisma.transaction.create({ data: { farmId: farm2.id, date: new Date("2026-05-01"), description: "Corn sales — first load", accountId: await acct2("crop_sales"), amountCents: 820000n, cashDate: new Date("2026-05-01"), cashEffectCents: 820000n } });
+  await prisma.transaction.create({ data: { farmId: farm2.id, date: new Date("2026-05-03"), description: "Seed corn", accountId: await acct2("seeds_plants"), amountCents: -310000n, cashDate: new Date("2026-05-03"), cashEffectCents: -310000n } });
 
   // --- users + memberships (Phase 8 auth). Owner has full access to both
   //     farms; Viewer is read-only on the main farm. ---

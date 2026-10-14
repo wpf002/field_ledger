@@ -5,7 +5,7 @@ import { Money } from "@/components/ui/money";
 import { RevenueTabs } from "@/components/revenue-tabs";
 import { InvoiceActions } from "@/components/invoice-actions";
 import { EmptyState } from "@/components/ui/empty-state";
-import { prisma } from "@fl/db";
+import { prisma, pnlWhere } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { sumCents } from "@fl/core";
 import { fmtDate } from "@/lib/format";
@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
 export default async function RevenuePage() {
   const farmId = await getDemoFarmId();
   const [txns, invoices, customers] = await Promise.all([
-    prisma.transaction.findMany({ where: { farmId } }),
+    prisma.transaction.findMany({ where: { farmId, ...pnlWhere } }),
     prisma.invoice.findMany({ where: { farmId }, include: { customer: true }, orderBy: { number: "desc" } }),
     prisma.customer.findMany({ where: { farmId }, include: { invoices: true }, orderBy: { name: "asc" } }),
   ]);

@@ -39,7 +39,7 @@ export async function registerInvoices(app: FastifyInstance) {
     if (!account) return reply.badRequest("Missing account other_income");
 
     const tx = await prisma.transaction.create({
-      data: { farmId, date: paidAt, accountId: account.id, description: `Invoice payment — #${inv.number}`, amountCents: inv.totalCents, source: "invoice_payment", invoiceId: inv.id },
+      data: { farmId, date: paidAt, accountId: account.id, description: `Invoice payment — #${inv.number}`, amountCents: inv.totalCents, cashDate: paidAt, cashEffectCents: inv.totalCents, customerId: inv.customerId, source: "invoice_payment", invoiceId: inv.id },
     });
     const updated = await prisma.invoice.update({ where: { id }, data: { status: "PAID", paidAt } });
     await prisma.auditLog.create({ data: { farmId, action: "post", entity: "Transaction", entityId: tx.id, after: { invoiceId: inv.id, amountCents: inv.totalCents.toString() } } });

@@ -10,3 +10,4 @@ export * from "./budget.js";
 export * from "./reports.js";
 export * from "./txf.js";
 export * from "./assistant.js";
+export * from "./chart.js";

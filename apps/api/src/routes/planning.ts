@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@fl/db";
+import { prisma, pnlWhere } from "@fl/db";
 import { z } from "zod";
 import { budgetStatus, deserializeCents } from "@fl/core";
 
@@ -9,7 +9,7 @@ export async function registerPlanning(app: FastifyInstance) {
     const { farmId } = req.params as { farmId: string };
     const [budgets, txns, accounts] = await Promise.all([
       prisma.budget.findMany({ where: { farmId } }),
-      prisma.transaction.findMany({ where: { farmId }, include: { account: true } }),
+      prisma.transaction.findMany({ where: { farmId, ...pnlWhere }, include: { account: true } }),
       prisma.account.findMany({ where: { farmId } }),
     ]);
     const labelByCode = new Map(accounts.map((a) => [a.code, a.label]));

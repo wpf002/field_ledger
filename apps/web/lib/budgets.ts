@@ -1,4 +1,4 @@
-import { prisma } from "@fl/db";
+import { prisma, pnlWhere } from "@fl/db";
 import { budgetStatus, type BudgetStatus } from "@fl/core";
 
 export type BudgetWithStatus = { id: string; period: string; status: BudgetStatus };
@@ -7,7 +7,7 @@ export type BudgetWithStatus = { id: string; period: string; status: BudgetStatu
 export async function getBudgetStatuses(farmId: string, today = new Date()): Promise<BudgetWithStatus[]> {
   const [budgets, txns, accounts] = await Promise.all([
     prisma.budget.findMany({ where: { farmId } }),
-    prisma.transaction.findMany({ where: { farmId }, include: { account: true } }),
+    prisma.transaction.findMany({ where: { farmId, ...pnlWhere }, include: { account: true } }),
     prisma.account.findMany({ where: { farmId } }),
   ]);
   const labelByCode = new Map(accounts.map((a) => [a.code, a.label]));

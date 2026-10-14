@@ -3,7 +3,7 @@ import { Card, SectionHeading } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { type ProjectionDatum } from "@/components/charts/insights-projection-chart";
 import { InsightsProjectionView, type ProjectionModel } from "@/components/insights-projection-view";
-import { prisma } from "@fl/db";
+import { prisma, pnlWhere } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { getValuedInventory, inventoryTotals } from "@/lib/valuation";
 import { sumCents, formatCentsDisplay, naiveForecaster, holtWintersForecaster, obligationsInWindow, type MonthFlow } from "@fl/core";
@@ -20,7 +20,7 @@ export default async function InsightsPage() {
     getValuedInventory(farmId),
     prisma.liability.findMany({ where: { farmId } }),
     prisma.lease.findMany({ where: { farmId } }),
-    prisma.transaction.findMany({ where: { farmId } }),
+    prisma.transaction.findMany({ where: { farmId, ...pnlWhere } }),
   ]);
 
   // Marketable inventory = livestock + crops, valued at the latest market quote.

@@ -100,7 +100,7 @@ export async function registerImport(app: FastifyInstance) {
       const tx = await prisma.transaction.create({
         data: {
           farmId, date, description: row.description, accountId: account.id,
-          amountCents, source: "import", importBatchId: batch.id,
+          amountCents, cashDate: date, cashEffectCents: amountCents, source: "import", importBatchId: batch.id,
           externalId: row.externalId, dedupeHash: hash, relatedInventoryId,
         },
       });
