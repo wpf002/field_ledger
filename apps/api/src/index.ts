@@ -32,19 +32,22 @@ await app.register(cors, { origin: process.env.WEB_ORIGIN ?? true, credentials: 
 await app.register(cookie);
 await app.register(sensible);
 
-// Phase 8: role-gate writes. Reads (GET) and read-only POSTs (chat, import
-// preview, reconcile match) are open; every mutating request to a farm requires
-// a valid session token whose membership on that farm is not VIEWER.
+// Every /farms/:farmId route (reads included) requires a valid session token
+// with a membership on that farm. Viewers may read (GET/HEAD and the read-only
+// POSTs: chat, import preview, reconcile match) but not mutate. Routes outside
+// /farms/:farmId (/integrations/providers, OAuth callback, /hooks, /v1, /mcp)
+// carry their own auth.
 const READ_ONLY_POST = ["/assistant/chat", "/assistant/quick-log", "/assistant/receipt", "/import/preview", "/reconcile/match"];
 app.addHook("preHandler", async (req, reply) => {
-  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return;
-  if (req.method === "POST" && READ_ONLY_POST.some((s) => req.url.includes(s))) return;
-  const farmId = req.url.match(/\/farms\/([^/?]+)/)?.[1];
-  if (!farmId) return; // non-farm-scoped mutation
+  if (req.method === "OPTIONS") return;
+  if (!req.routeOptions.url?.startsWith("/farms/:farmId")) return;
+  const { farmId } = req.params as { farmId: string };
   const v = verifyToken(tokenFromRequest(req));
   if (!v) return reply.code(401).send({ message: "Sign in required." });
   const role = await roleForFarm(v.userId, farmId);
   if (!role) return reply.code(403).send({ message: "You don't have access to this farm." });
+  if (req.method === "GET" || req.method === "HEAD") return;
+  if (req.method === "POST" && READ_ONLY_POST.some((s) => req.routeOptions.url!.endsWith(s))) return;
   if (role === "VIEWER") return reply.code(403).send({ message: "Viewers have read-only access." });
 });
 
