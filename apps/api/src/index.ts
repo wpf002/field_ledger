@@ -17,6 +17,7 @@ import { registerReports } from "./routes/reports.js";
 import { registerInvoices } from "./routes/invoices.js";
 import { registerAssistant } from "./routes/assistant.js";
 import { registerIntegrations } from "./routes/integrations.js";
+import { registerPublicApi } from "./routes/public-api.js";
 import { bigintReplySerializer } from "./plugins/bigint-serializer.js";
 import { verifyToken, tokenFromRequest, roleForFarm } from "./lib/session.js";
 
@@ -62,6 +63,7 @@ await registerReports(app);
 await registerInvoices(app);
 await registerAssistant(app);
 await registerIntegrations(app);
+await registerPublicApi(app);
 
 // Railway (and most PaaS) inject the port to bind on via PORT.
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);

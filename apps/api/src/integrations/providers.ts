@@ -213,7 +213,7 @@ export const PROVIDERS: Provider[] = [
     },
   },
   { key: "nws", name: "Weather Forecast (NWS)", category: "Weather", phase: 2, auth: "public", env: [], pulls: "7-day forecast for the farm's coordinates", docs: "https://www.weather.gov/documentation/services-web-api" },
-  { key: "webhook", name: "Zapier / Webhook", category: "Farm Software", phase: 2, auth: "webhook", env: [], pulls: "Records pushed from Farmbrite or any Zapier-connected app", docs: "/docs/integrations#webhook" },
+  { key: "webhook", name: "Zapier / Webhook", category: "Farm Software", phase: 2, auth: "webhook", env: [], pulls: "Records pushed from Farmbrite or any Zapier-connected app", docs: "docs/INTEGRATIONS.md" },
   { key: "cattlemax", name: "CattleMax", category: "Livestock", phase: 2, auth: "file", env: [], pulls: "Animal registry from a CattleMax CSV export", docs: "/import?table=animals" },
   { key: "farmbrite", name: "Farmbrite", category: "Farm Software", phase: 2, auth: "partner", env: [], pulls: "Livestock, crops, inventory (API access by request; Zapier works today)", docs: "https://www.farmbrite.com/integrations" },
   { key: "agriwebb", name: "AgriWebb", category: "Livestock", phase: 2, auth: "partner", env: [], pulls: "Mobs, movements, treatments, weights (partner GraphQL API)", docs: "https://www.agriwebb.com/partners" },

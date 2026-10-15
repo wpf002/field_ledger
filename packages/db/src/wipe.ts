@@ -41,6 +41,7 @@ export async function wipeFarm(prisma: PrismaClient, farmId: string) {
   await prisma.forecastSetting.deleteMany({ where });
   await prisma.forecastRun.deleteMany({ where });
   await prisma.connection.deleteMany({ where }); // SyncRun cascades
+  await prisma.apiToken.deleteMany({ where });
   await prisma.enterprise.deleteMany({ where: { farmId, parentId: { not: null } } });
   await prisma.enterprise.deleteMany({ where });
   await prisma.alert.deleteMany({ where });

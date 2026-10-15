@@ -80,6 +80,7 @@ model Farm {
   ForecastSetting       ForecastSetting?
   ForecastRun           ForecastRun[]
   Connection            Connection[]
+  ApiToken              ApiToken[]
 }
 
 enum Role {
@@ -988,4 +989,21 @@ model SyncRun {
   status       String     @default("running") // running | ok | error
   counts       Json?
   error        String?
+}
+
+/// Personal access token for the public API and the remote MCP server. Only a hash is stored.
+model ApiToken {
+  id         String    @id @default(uuid())
+  userId     String
+  farm       Farm      @relation(fields: [farmId], references: [id])
+  farmId     String
+  name       String
+  prefix     String // first characters, shown in the UI
+  tokenHash  String    @unique
+  scope      String    @default("read") // read | analyze
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
 }
