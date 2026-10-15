@@ -49,7 +49,7 @@ function StatementTable({ head, lines }: { head: [string, string?]; lines: Line[
   const compare = head[1] != null;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[520px] text-sm">
+      <table className="w-full min-w-[520px] text-sm [&_td:last-child]:pr-3 [&_th:last-child]:pr-3">
         <thead>
           <tr className="text-left text-xs uppercase tracking-wider text-muted">
             <th className="py-2 font-medium">Line</th>
