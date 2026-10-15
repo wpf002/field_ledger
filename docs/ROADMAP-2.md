@@ -129,6 +129,9 @@ base-case revenue vs the workbook is BRN -5.7%, RCK +1.9%, SAM +7.9%, LAN -16.3%
 The workbook's base case embeds price, yield, and rainfall assumptions (e.g. LAN's
 return to normal rain after a drought year); the app takes those as editable
 scenario drivers instead of hard-coding them. `verify:testfarms` prints the gaps.
+LAN's realized 2026 hay prices ($87-102/bale) already match the 9/30 inventory mark,
+so the gap is volume: the workbook's base sells more hay than any year in the books.
+Repricing last year's sales at current marks was tried and made SAM worse (+13.9%).
 
 ## Phase 15 — Decisions (spec §13, §18–§20, §27, §28)
 
@@ -147,7 +150,12 @@ within 5%.
 **Result:** 21 of 25 within 5% (18 of the 22 computed from the books; 3 rest on
 owner assumptions the books can't supply and are stored as estimates). Misses:
 the two forecast-scenario levers (they depend on the workbook's own forecast) and
-two that use the in-progress 2026 hay season.
+two that use the in-progress 2026 hay season. The workbook's 2026 season includes a
+projected October cutting (contractor $373/ac vs $281/ac booked through 9/30), so its
+break-even ($77.65) and margins can't be reproduced from actuals. The downside
+deltas start from different bases (LAN base 12-month NFI: app $25.6k, workbook
+$54.5k), and no driver set derived from the stated downside assumptions lands
+within 5%.
 
 ## Phase 16 — AI layer (spec §29, §30, AI security model)
 
@@ -162,8 +170,10 @@ two that use the in-progress 2026 hay season.
 **Acceptance:** for each farm the engine surfaces ≥ 8 of its 10 `AI_Insights`;
 every figure in a brief traces to a record.
 
-**Result:** 37 of 40 (BRN 9, LAN 9, RCK 10, SAM 9). Not detected: BRN-05 (two more
-cows), LAN-08 (barn payback), SAM-08 (storage timing).
+**Result:** 40 of 40. Storage timing compares harvest-window and stored sales per crop
+season; asset payback compares a storage building's spoilage savings with its
+depreciation and interest; herd expansion flags light stocking (≥ 10 ac a cow,
+sized to 8 ac a cow) on an enterprise with positive gross margin.
 
 ## Phase 17 — Integrations, tier 1 (spec Phase 1 list)
 

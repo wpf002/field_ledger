@@ -30,11 +30,11 @@ export async function generateInsights(prisma: PrismaClient, farmId: string): Pr
   const inputs = await loadStatementInputs(prisma, farmId);
   const cutoff = inputs.cutoff ?? D(new Date().getUTCFullYear(), new Date().getUTCMonth(), 0);
   const ent = await loadEnterpriseInputs(prisma, farmId, inputs.cutoff);
-  const [labor, production, invoices, txns, assets, weather, processed, animals, repro, bullVals, liabilities, setting] = await Promise.all([
+  const [labor, production, invoices, txns, assets, weather, processed, animals, repro, bullVals, liabilities, setting, seasons, parcels, cows] = await Promise.all([
     prisma.laborEntry.findMany({ where: { farmId } }),
     prisma.productionRecord.findMany({ where: { farmId } }),
     prisma.invoice.findMany({ where: { farmId }, include: { customer: true } }),
-    prisma.transaction.findMany({ where: { farmId, entryType: "ledger" }, select: { date: true, cashDate: true, amountCents: true, customerId: true, quantity: true, unitPrice: true, enterpriseId: true, account: { select: { code: true, section: true, statementLine: true } } } }),
+    prisma.transaction.findMany({ where: { farmId, entryType: "ledger" }, select: { date: true, cashDate: true, amountCents: true, customerId: true, quantity: true, unitPrice: true, unit: true, enterpriseId: true, cropSeasonId: true, account: { select: { code: true, section: true, statementLine: true } } } }),
     prisma.asset.findMany({ where: { farmId } }),
     prisma.weatherMonth.findMany({ where: { farmId } }),
     prisma.processedAnimal.findMany({ where: { farmId } }),
@@ -43,6 +43,9 @@ export async function generateInsights(prisma: PrismaClient, farmId: string): Pr
     prisma.bullValuation.findMany({ where: { farmId }, orderBy: { asOf: "desc" } }),
     prisma.liability.findMany({ where: { farmId } }),
     prisma.forecastSetting.findUnique({ where: { farmId } }),
+    prisma.cropSeason.findMany({ where: { farmId }, select: { year: true, enterpriseId: true, totalProduction: true, yieldUnit: true, actualAvgPrice: true, dataType: true, extra: true } }),
+    prisma.landParcel.findMany({ where: { farmId } }),
+    prisma.animal.count({ where: { farmId, species: "Cattle", status: "On hand", currentClass: { in: ["Cows", "Brood cows", "Mature cows"] } } }),
   ]);
   const semenSnaps = await prisma.inventorySnapshot.findMany({ where: { farmId, category: "Semen inventory", asOf: cutoff } });
   const customers = new Map(invoices.map((i) => [i.customerId, i.customer.name]));
@@ -324,6 +327,37 @@ export async function generateInsights(prisma: PrismaClient, farmId: string): Pr
       recommendation: `Price replacements now and decide before the next big repair.`, metrics: { repayment_margin: Number(fy.repaymentMarginCents) / 100, annual_payment: Number(pay) / 100 }, sources: ["assets", "financial_ratios"] };
   });
 
+  run(() => {
+    // A storage building bought during the books: spoilage saved vs. what it costs to own.
+    const lossRate = (x: (typeof seasons)[number]) => {
+      const lost = Number((x.extra as Record<string, unknown> | null)?.qty_lost), prod = Number(x.totalProduction);
+      return Number.isFinite(lost) && prod > 0 ? lost / prod : null;
+    };
+    const res: Insight[] = [];
+    for (const a of assets) {
+      if (a.category === "Land" || !a.usefulLifeYears || !/\b(barn|shed|bins?|storage|cooler)\b/i.test(a.description)) continue;
+      const entIds = ent.enterprises.filter((e) => e.externalId && a.enterpriseAllocation?.includes(`${e.externalId}:`)).map((e) => e.id);
+      const ss = seasons.filter((x) => x.enterpriseId && entIds.includes(x.enterpriseId) && x.dataType === "Actual" && lossRate(x) != null).sort((x, y) => x.year - y.year);
+      const y0 = a.purchasedAt.getUTCFullYear();
+      const before = ss.filter((x) => x.year < y0).at(-1), after = ss.filter((x) => x.year > y0).at(-1);
+      if (!before || !after || !after.actualAvgPrice) continue;
+      const r0 = lossRate(before)!, r1 = lossRate(after)!;
+      const saved = (r0 - r1) * Number(after.totalProduction), value = saved * Number(after.actualAvgPrice);
+      if (saved <= 0) continue;
+      const loan = liabilities.find((l) => l.id === a.liabilityId);
+      const dep = Number(a.originalCostCents - a.salvageCents) / 100 / a.usefulLifeYears;
+      const interest = loan ? (Number(loan.originalCents) / 100) * (Number(loan.ratePct) / 100) : 0;
+      const cost = dep + interest, ratio = value / cost;
+      const what = a.description.split(/ [\d(]/)[0]!.toLowerCase();
+      res.push({ topic: "asset_payback", severity: ratio < 1 ? "Warning" : ratio < 1.5 ? "Watch" : "Positive",
+        title: ratio < 1 ? `The ${what} cut losses but doesn't pay for itself` : ratio < 1.5 ? `The ${what} cut losses but barely pays for itself` : `The ${what} pays for itself`,
+        finding: `Storage losses fell from ${pct(r0, 1)} of production (${before.year}) to ${pct(r1, 1)} (${after.year}): about ${Math.round(saved).toLocaleString("en-US")} ${after.yieldUnit?.split("/")[0] ?? "units"} saved, worth ${usd(value)} at ${after.year} prices, against ${usd(cost)} a year of depreciation${loan ? " and interest" : ""}.`,
+        recommendation: `Use the storage to sell later in the season at a premium; that's where the rest of its return has to come from.`,
+        metrics: { [`loss_rate_${before.year}`]: r0, [`loss_rate_${after.year}`]: r1, value_saved: Math.round(value), annual_cost: Math.round(cost) }, sources: ["crop_seasons", "assets", "loans"] });
+    }
+    return res;
+  });
+
   // --- customers ---
   run(() => {
     const open = invoices.filter((i) => i.status !== "PAID" && i.dueAt < cutoff);
@@ -400,7 +434,60 @@ export async function generateInsights(prisma: PrismaClient, farmId: string): Pr
       metrics: Object.fromEntries(nfi.map((x) => [String(x.y), Number(x.v) / 100])), sources: ["income_statement", "transactions", "loans"] };
   });
 
+  // --- marketing ---
+  run(() => {
+    // Grain held past harvest: sales more than 45 days after a season's first sale, priced against the harvest sales.
+    const seasonOf = new Map(ent.cropSeasons.map((x) => [x.id, x]));
+    const sales = new Map<string, { qty: number; cents: number; t: number }[]>(), unitOf = new Map<string, string>();
+    for (const x of txns) {
+      if (x.account.section !== "REV" || !x.cropSeasonId || !x.quantity || x.amountCents <= 0n) continue;
+      if (x.unit) unitOf.set(x.cropSeasonId, x.unit);
+      const list = sales.get(x.cropSeasonId) ?? []; list.push({ qty: Number(x.quantity), cents: Number(x.amountCents), t: x.date.getTime() }); sales.set(x.cropSeasonId, list);
+    }
+    const byCrop = new Map<string, { year: number; unit: string; stored: number; harvestPrice: number; storedPrice: number; gain: number }[]>();
+    for (const [id, xs] of sales) {
+      const season = seasonOf.get(id); if (!season) continue;
+      const first = Math.min(...xs.map((x) => x.t));
+      const early = xs.filter((x) => x.t - first <= 45 * 86_400_000), late = xs.filter((x) => x.t - first > 45 * 86_400_000);
+      const q = (ys: typeof xs) => ys.reduce((a, y) => a + y.qty, 0), c = (ys: typeof xs) => ys.reduce((a, y) => a + y.cents, 0);
+      const qe = q(early), ql = q(late);
+      if (!qe || ql < 0.2 * (qe + ql)) continue;
+      const hp = c(early) / qe / 100, sp = c(late) / ql / 100;
+      const list = byCrop.get(season.crop) ?? []; list.push({ year: season.year, unit: unitOf.get(id) ?? "units", stored: ql, harvestPrice: hp, storedPrice: sp, gain: (sp - hp) * ql }); byCrop.set(season.crop, list);
+    }
+    const [crop, rs] = [...byCrop.entries()].filter(([, r]) => r.length >= 2).sort((a, b) => b[1].reduce((s, r) => s + Math.abs(r.gain), 0) - a[1].reduce((s, r) => s + Math.abs(r.gain), 0))[0] ?? [];
+    if (!crop || !rs) return null;
+    rs.sort((a, b) => a.year - b.year);
+    const total = rs.reduce((s, r) => s + r.gain, 0), mixed = rs.some((r) => r.gain < 0) && rs.some((r) => r.gain > 0);
+    if (!mixed && Math.abs(total) < 1000) return null;
+    const lines = rs.map((r) => `${r.year}: harvest $${r.harvestPrice.toFixed(2)}, stored $${r.storedPrice.toFixed(2)} on ${Math.round(r.stored).toLocaleString("en-US")} ${r.unit} (${r.gain >= 0 ? "+" : ""}${usd(r.gain)})`).join("; ");
+    return { topic: "storage_timing", severity: mixed || total < 0 ? "Watch" : "Positive",
+      title: mixed ? `Storing ${crop.toLowerCase()} has cut both ways` : total < 0 ? `Storing ${crop.toLowerCase()} has cost ${usd(-total)}` : `Storing ${crop.toLowerCase()} has paid ${usd(total)}`,
+      finding: `${lines}. Net ${total >= 0 ? "gain" : "loss"} versus selling at harvest: ${usd(Math.abs(total))}. Unpriced grain in the bin is a price bet funded by the operating line.`,
+      recommendation: `Store only when a forward or HTA contract locks in a positive carry.`,
+      metrics: Object.fromEntries(rs.map((r) => [`gain_${r.year}`, Math.round(r.gain)])), sources: ["crop_seasons", "transactions"] };
+  });
+
   // --- livestock ---
+  run(() => {
+    // Light stocking plus a profitable direct-beef outlet: room for more cows.
+    const cattle = processed.filter((p) => p.species === "Cattle" && p.revenueCents && p.processedAt?.getUTCFullYear() === lastFull);
+    const entId = cattle[0]?.enterpriseId;
+    if (cattle.length < 2 || !entId || !cows) return null;
+    const acres = parcels.filter((p) => p.enterpriseId === entId && /graz|pasture/i.test(p.use ?? "")).reduce((s, p) => s + Number(p.acres), 0);
+    const perCow = acres / cows;
+    // 8 ac a cow: a conservative year-round rate for southern improved and native pasture.
+    const extra = Math.floor(acres / 8) - cows;
+    // Extra cows add variable costs only (bull, pens, and trailer are already carried), so gross margin is the test.
+    const gm = last.get(entId)?.grossProfitCents ?? 0n;
+    if (perCow < 10 || extra < 1 || gm <= 0n) return null;
+    const rev = cattle.reduce((s, p) => s + Number(p.revenueCents), 0) / cattle.length / 100;
+    const proc = cattle.reduce((s, p) => s + Number((p.data as Record<string, unknown>).processing_cost ?? 0), 0) / cattle.length;
+    return { topic: "herd_expansion", severity: "Opportunity", title: `Pasture can carry ${extra} more ${extra === 1 ? "cow" : "cows"}`,
+      finding: `${Math.round(acres)} ac of grazing carries ${cows} cows (${perCow.toFixed(1)} ac a cow). Direct-sold beef brought ${usd(rev)} a head in ${lastFull}, ${usd(proc)} of it processing; ${name.get(entId)} cleared ${usd(gm)} over direct costs that year.`,
+      recommendation: `Test +${extra} cows in Scenarios before buying: check winter hay and processor slots.`,
+      metrics: { acres_per_cow: Number(perCow.toFixed(1)), beef_revenue_per_head: Math.round(rev), extra_cows: extra }, sources: ["land", "animals", "processed_animal_economics"] };
+  });
   run(() => {
     const xs = processed.map((p) => p.data as Record<string, number>).filter((d) => Number.isFinite(Number(d.gross_profit_per_animal)) && Number(d.calf_transfer_value) > 0);
     if (xs.length < 3) return null;
