@@ -7,6 +7,7 @@ import { MonthSelect } from "@/components/month-select";
 import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { getStatementContext, pickMonth, monthKey } from "@/lib/statements";
+import { getForecastContext, forecastStatement } from "@/lib/forecast";
 import { fmtMonthYear } from "@/lib/format";
 import {
   incomeStatement, balanceSheetAt, cashFlowReport, lineDetail, periodFor, priorPeriod, priorYearPeriod,
@@ -16,7 +17,7 @@ import {
 export const dynamic = "force-dynamic";
 
 type View = "income" | "balance" | "cash";
-type Compare = "prior" | "year" | "budget";
+type Compare = "prior" | "year" | "budget" | "forecast";
 type Params = { view?: string; period?: string; at?: string; compare?: string };
 
 const PERIODS: { value: PeriodKind; label: string }[] = [
@@ -175,7 +176,7 @@ export default async function StatementsPage({ searchParams }: { searchParams: P
   const { inputs, asOf, months } = await getStatementContext(farmId);
   const view: View = searchParams.view === "balance" || searchParams.view === "cash" ? searchParams.view : "income";
   const kind: PeriodKind = PERIODS.some((p) => p.value === searchParams.period) ? (searchParams.period as PeriodKind) : "ytd";
-  const compare: Compare = searchParams.compare === "year" || searchParams.compare === "budget" ? searchParams.compare : "prior";
+  const compare: Compare = searchParams.compare === "year" || searchParams.compare === "budget" || searchParams.compare === "forecast" ? searchParams.compare : "prior";
   const at = pickMonth(months, searchParams.at, asOf);
   const p: Params = { view, period: kind, at: monthKey(at), compare };
   const monthOptions = [...months].reverse().map((m) => ({ key: monthKey(m), label: fmtMonthYear(m) }));
@@ -184,9 +185,10 @@ export default async function StatementsPage({ searchParams }: { searchParams: P
   let body: React.ReactNode;
   if (view === "income") {
     const period = periodFor(kind, at);
-    const cmpPeriod = compare === "budget" ? null : compare === "year" ? priorYearPeriod(period) : priorPeriod(period);
+    const cmpPeriod = compare === "budget" || compare === "forecast" ? null : compare === "year" ? priorYearPeriod(period) : priorPeriod(period);
     const is = incomeStatement(rows, period.from, period.to);
-    const cmp = cmpPeriod ? incomeStatement(rows, cmpPeriod.from, cmpPeriod.to) : await budgetStatement(farmId, period);
+    const cmp = cmpPeriod ? incomeStatement(rows, cmpPeriod.from, cmpPeriod.to)
+      : compare === "forecast" ? forecastStatement(await getForecastContext(farmId), period.from, period.to) : await budgetStatement(farmId, period);
     body = (
       <>
         <div className="mb-5 flex flex-wrap items-center gap-3">
@@ -195,10 +197,11 @@ export default async function StatementsPage({ searchParams }: { searchParams: P
             { value: "prior", label: "Prior Period", href: href(p, { compare: "prior" }) },
             { value: "year", label: "Prior Year", href: href(p, { compare: "year" }) },
             { value: "budget", label: "Budget", href: href(p, { compare: "budget" }) },
+            { value: "forecast", label: "Forecast", href: href(p, { compare: "forecast" }) },
           ]} />
         </div>
         <Card className="p-6">
-          <StatementTable head={[period.label, cmpPeriod?.label ?? (cmp ? "Budget" : "No Budget")]} lines={incomeLines(rows, period, is, cmp, cmpPeriod)} />
+          <StatementTable head={[period.label, cmpPeriod?.label ?? (compare === "forecast" ? "Forecast" : cmp ? "Budget" : "No Budget")]} lines={incomeLines(rows, period, is, cmp, cmpPeriod)} />
         </Card>
       </>
     );

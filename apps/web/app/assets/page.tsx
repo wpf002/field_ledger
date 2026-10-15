@@ -6,7 +6,9 @@ import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, Th, Td, num } from "@/components/ui/table";
 import { prisma } from "@fl/db";
-import { getDemoFarmId } from "@/lib/data";
+import { getDemoFarmId, getPlan } from "@/lib/data";
+import { Upgrade } from "@/components/ui/upgrade";
+import { hasFeature } from "@fl/core";
 import { getFinancialSnapshot } from "@/lib/snapshot";
 import { netBookValue, repairVsReplace, equipmentPurchase, sumCents } from "@fl/core";
 import { fmtDate } from "@/lib/format";
@@ -24,6 +26,7 @@ function Input({ name, label, value, step = "any" }: { name: string; label: stri
 
 export default async function AssetsPage({ searchParams }: { searchParams: SP }) {
   const farmId = await getDemoFarmId();
+  const roiAllowed = hasFeature(await getPlan(), "equipment_roi");
   const snap = await getFinancialSnapshot(farmId);
   const asOf = snap.asOf;
   const [assets, loans] = await Promise.all([
@@ -55,6 +58,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: SP })
       overhaulCents: c(n(searchParams.overhaul, 0)), repairsAfterOverhaulCents: c(n(searchParams.afterOverhaul, Number(repairs(pick, lastYear)) / 200)),
       replacementPriceCents: c(n(searchParams.newPrice, Number(pick.originalCostCents) / 100 * 1.25)), tradeInCents: c(n(searchParams.tradeIn, Number(pick.estCurrentValueCents ?? 0n) / 100 || nbv)),
       ratePct: n(searchParams.rate, 7.5), termYears: n(searchParams.term, 7), newRepairsCents: c(n(searchParams.newRepairs, 6000)), resaleAtEndCents: c(n(searchParams.endResale, 0)),
+      downtimeCostKeepCents: c(n(searchParams.downtime, 0)), efficiencySavingsCents: c(n(searchParams.efficiency, 0)),
     });
   }
 
@@ -100,6 +104,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: SP })
         </tbody>
       </Table>
 
+      {roiAllowed ? (
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
         {pick && rvr && (
           <Card className="p-6" >
@@ -127,6 +132,8 @@ export default async function AssetsPage({ searchParams }: { searchParams: SP })
               <Input name="term" label="Term (Years)" value={n(searchParams.term, 7)} step="1" />
               <Input name="newRepairs" label="New Repairs / Yr" value={n(searchParams.newRepairs, 6000)} />
               <Input name="endResale" label="Resale at End" value={n(searchParams.endResale, 0)} />
+              <Input name="downtime" label="Downtime Cost / Yr (Keep)" value={n(searchParams.downtime, 0)} />
+              <Input name="efficiency" label="Efficiency Savings / Yr (New)" value={n(searchParams.efficiency, 0)} />
               <button className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-deep sm:col-span-2">Compare</button>
             </form>
           </Card>
@@ -157,6 +164,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: SP })
           <p className="mt-3 text-xs text-muted"><a className="underline" href={`/scenarios?eqPrice=${n(searchParams.buyPrice, 0)}&eqDown=${n(searchParams.buyDown, 0)}&eqRate=${n(searchParams.buyRate, 7.5)}&eqYears=${n(searchParams.buyYears, 5)}&eqLife=${n(searchParams.buyLife, 10)}&eqSalvage=${n(searchParams.buySalvage, 0)}`}>Open in Scenarios</a></p>
         </Card>
       </div>
+      ) : <div className="mt-6"><Upgrade feature="equipment_roi" title="Equipment Decisions" /></div>}
       <p className="mt-3 text-xs text-muted">{num(assets.length - active.length)} disposed asset{assets.length - active.length === 1 ? "" : "s"} not shown</p>
     </>
   );

@@ -3,7 +3,9 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Money } from "@/components/ui/money";
 import { InventoryList, type InventoryVM } from "@/components/inventory-list";
 import { AddInventoryButton } from "@/components/add-inventory-button";
-import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
+import { getDemoFarmId, getCurrentRole, canWrite, getPlan } from "@/lib/data";
+import { Upgrade } from "@/components/ui/upgrade";
+import { hasFeature } from "@fl/core";
 import { getValuedInventory } from "@/lib/valuation";
 import { sumCents } from "@fl/core";
 import { Boxes, Beef, Wheat, Tractor } from "lucide-react";
@@ -20,7 +22,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: { 
   const canEdit = canWrite(await getCurrentRole());
   const marketing = searchParams.view === "marketing";
   const tabs = <div className="mb-6"><LinkTabs value={marketing ? "marketing" : "onhand"} options={[{ value: "onhand", label: "On Hand", href: "/inventory" }, { value: "marketing", label: "Marketing", href: "/inventory?view=marketing" }]} /></div>;
-  if (marketing) return (<><PageHeader title="Inventory" />{tabs}<MarketingView farmId={farmId} canEdit={canEdit} /></>);
+  if (marketing) return (<><PageHeader title="Inventory" />{tabs}{hasFeature(await getPlan(), "marketing") ? <MarketingView farmId={farmId} canEdit={canEdit} /> : <Upgrade feature="marketing" title="Marketing" />}</>);
   // Farms with month-end snapshots (imported books) get the snapshot view.
   if (await prisma.inventorySnapshot.count({ where: { farmId } })) {
     const { asOf } = await getStatementContext(farmId);

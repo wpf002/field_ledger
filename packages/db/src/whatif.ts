@@ -59,7 +59,7 @@ export function runWhatIf(ctx: Ctx, w: WhatIf): Outcome {
   }
   const bs0 = balanceSheetAt(ctx.inputs, asOf);
   const fc = twelveMonthForecast({
-    rows: ctx.inputs.rows, asOf, cashCents: bs0.cashCents, loans, assets, line: ctx.lineTerms, reserveCents: ctx.reserveCents, drivers,
+    rows: ctx.inputs.rows, contracts: ctx.contracts, asOf, cashCents: bs0.cashCents, loans, assets, line: ctx.lineTerms, reserveCents: ctx.reserveCents, drivers,
     extra: { items, monthlyCostCents: monthlyCost, monthlyRevenueCents: monthlyRevenue },
   });
   const end = fc[fc.length - 1]!.monthEnd;

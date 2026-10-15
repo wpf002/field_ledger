@@ -25,7 +25,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getCurrentFarm();
-  const standalone = headers().get("x-pathname")?.startsWith("/oauth/") ?? false;
+  const standalone = /^\/(oauth|invite)\//.test(headers().get("x-pathname") ?? "");
   return (
     <html lang="en" className={`${serif.variable} ${sans.variable}`}>
       <body className="font-sans">
@@ -37,6 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               role={session.role}
               farms={session.memberships.map((m) => ({ id: m.farmId, name: m.farm.name }))}
               currentFarmId={session.farm.id}
+              plan={session.farm.plan}
             />
             <main className="min-w-0 flex-1 px-4 pb-8 pt-20 sm:px-6 lg:px-10 lg:py-8">{children}</main>
           </div>

@@ -54,7 +54,7 @@ export async function importTestFarm(prisma: PrismaClient, path: string): Promis
   }
   const farm = await prisma.farm.create({
     data: {
-      name: readme[0] ?? bizId, externalId: bizId,
+      name: readme[0] ?? bizId, externalId: bizId, plan: "business",
       ownerName: profile["Owner"] ?? null, location: profile["Location"] ?? null,
       structure: profile["Business Structure"] ?? null,
       acres: profile["Total Acres"] ? Number(profile["Total Acres"].replace(/[^0-9.]/g, "")) : null,
@@ -198,6 +198,14 @@ export async function importTestFarm(prisma: PrismaClient, path: string): Promis
     };
   });
   await prisma.cropSeason.createMany({ data: seasons });
+  // Field for each season ("KS-P1" -> parcel "KS-P1 center pivot"), so season-tagged entries land on a field too.
+  const parcelRows = await prisma.landParcel.findMany({ where: { farmId }, select: { id: true, name: true, externalId: true } });
+  const seasonParcel = new Map<string, string>();
+  for (const sz of seasons) {
+    const f = sz.fieldId?.toLowerCase();
+    const p = f ? parcelRows.find((x) => x.name.toLowerCase() === f || x.name.toLowerCase().startsWith(`${f} `) || x.externalId?.toLowerCase().endsWith(`-${f}`)) : undefined;
+    if (p) seasonParcel.set(sz.externalId, p.id);
+  }
   const PROD_KNOWN = ["business_id", "enterprise_id", "date", "record_type", "item", "quantity", "unit", "data_type", "record_id"];
   await prisma.productionRecord.createMany({
     data: t("Production_Log").map((r) => ({
@@ -220,6 +228,13 @@ export async function importTestFarm(prisma: PrismaClient, path: string): Promis
     };
   });
   await prisma.animal.createMany({ data: animals });
+  // Bull and breeding-stock sales: buyer and price per animal (RCK Bull_Sales).
+  for (const r of t("Bull_Sales")) {
+    const id = animalId.get(String(r.animal_id));
+    if (!id) continue;
+    const price = toCents(r.price);
+    await prisma.animal.update({ where: { id }, data: { buyer: names.get(String(r.buyer_id)) ?? str(r.buyer_id), ...(price ? { salePriceCents: price } : {}), ...(str(r.grade) ? { grade: str(r.grade) } : {}), ...(toDate(r.sale_date) ? { dispositionDate: toDate(r.sale_date) } : {}) } });
+  }
   counts.animals = animals.length; counts.cropSeasons = seasons.length;
   await prisma.herdFlowMonth.createMany({
     data: t("Herd_Flow_Monthly").map((r) => ({
@@ -285,7 +300,8 @@ export async function importTestFarm(prisma: PrismaClient, path: string): Promis
       vendorId: cp?.startsWith("VEN-") ? vendorId.get(cp) ?? null : null, customerId: cp?.startsWith("CUS-") ? customerId.get(cp) ?? null : null,
       invoiceId: r.invoice_id ? invoiceId.get(String(r.invoice_id)) ?? null : null, billId: r.bill_id ? billId.get(String(r.bill_id)) ?? null : null,
       assetId: r.asset_id ? assetId.get(String(r.asset_id)) ?? null : null, liabilityId: r.loan_id ? liabilityId.get(String(r.loan_id)) ?? null : null,
-      cropSeasonId: r.crop_season_id ? cropSeasonId.get(String(r.crop_season_id)) ?? null : null, animalId: r.animal_id ? animalId.get(String(r.animal_id)) ?? null : null,
+      cropSeasonId: r.crop_season_id ? cropSeasonId.get(String(r.crop_season_id)) ?? null : null,
+      landParcelId: r.crop_season_id ? seasonParcel.get(String(r.crop_season_id)) ?? null : null, animalId: r.animal_id ? animalId.get(String(r.animal_id)) ?? null : null,
       quantity: num(r.quantity), unit: str(r.unit), unitPrice: num(r.unit_price), paymentMethod: str(r.payment_method),
     };
   });

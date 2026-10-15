@@ -4,6 +4,7 @@ import {
 } from "@fl/core";
 import { forecastContext } from "./forecast-context.js";
 import { generateInsights } from "./insights.js";
+import { loadCommodityExposure } from "./marketing.js";
 
 /**
  * Weekly / monthly financial brief (spec §29). Plain statements, each with the
@@ -81,10 +82,11 @@ export async function generateBrief(prisma: PrismaClient, farmId: string, kind: 
     .map((i) => ({ i, bal: i.totalCents - i.amountPaidCents })).sort((a, b) => Number(b.bal - a.bal))[0];
   if (overdue && overdue.bal >= 50_000n) actions.unshift({ text: `Collect the outstanding ${usd(overdue.bal)} invoice from ${overdue.i.customer.name} (due ${dayName(overdue.i.dueAt)}).`, sources: ["ar_invoices"] });
   if (weeks.reserveBreach) actions.push({ text: `Hold discretionary purchases until cash recovers after the week of ${dayName(weeks.reserveBreach.start)}.`, sources: ["cash_forecast_13_week"] });
-  const seasons = await prisma.cropSeason.findMany({ where: { farmId, year: asOf.getUTCFullYear() } });
-  const unpriced = seasons.map((s) => ({ crop: s.crop, prod: Number(s.totalProduction ?? Number(s.expectedYield ?? 0) * Number(s.acres)), sold: Number(s.qtySold ?? 0) }))
-    .filter((x) => x.prod > 0 && (x.prod - x.sold) / x.prod >= 0.4).sort((a, b) => b.prod - a.prod)[0];
-  if (unpriced) actions.push({ text: `Consider pricing part of the ${unpriced.crop.toLowerCase()} crop; ${pct((unpriced.prod - unpriced.sold) / unpriced.prod)} is still unsold.`, sources: ["crop_seasons"] });
+  // Most exposed crop by unpriced value: what's still to sell after sales and priced contracts.
+  const exposure = await loadCommodityExposure(prisma, farmId, asOf);
+  const unpriced = exposure.rows.filter((r) => r.exposedPct != null && r.exposedPct >= 0.4 && r.unpriced > 0)
+    .sort((a, b) => (b.unpricedValue ?? b.unpriced) - (a.unpricedValue ?? a.unpriced))[0];
+  if (unpriced) actions.push({ text: `Consider locking pricing on part of the ${unpriced.cropYear} ${unpriced.commodity.toLowerCase()} crop; ${pct(unpriced.exposedPct!)} of expected production is unpriced${unpriced.unpricedValue ? ` (${usd(BigInt(Math.round(unpriced.unpricedValue * 100)))} at today's price)` : ""}.`, sources: ["crop_seasons", "marketing_contracts"] });
   const top = (await generateInsights(prisma, farmId)).find((i) => i.severity === "Critical" || i.severity === "Warning");
   if (top) actions.push({ text: top.recommendation, sources: top.sources });
 

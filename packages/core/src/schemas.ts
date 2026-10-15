@@ -11,6 +11,7 @@ export const transactionInput = z.object({
   amountCents: centsString,           // signed; income +, expense -
   vendor: z.string().optional(),
   relatedInventoryId: z.string().uuid().optional(),
+  landParcelId: z.string().uuid().nullable().optional(),
 });
 export type TransactionInput = z.infer<typeof transactionInput>;
 
@@ -21,6 +22,7 @@ export const transactionUpdateInput = z.object({
   accountCode: z.string().min(1).optional(),
   amountCents: centsString.optional(),
   relatedLabel: z.string().optional(),
+  landParcelId: z.string().uuid().nullable().optional(),
 });
 export type TransactionUpdateInput = z.infer<typeof transactionUpdateInput>;
 

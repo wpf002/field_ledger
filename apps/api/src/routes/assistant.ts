@@ -3,7 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@fl/db";
 import { z } from "zod";
 import { verifyToken, tokenFromRequest, roleForFarm } from "../lib/session.js";
-import { classifyChat, parseQuickLog, formatCentsDisplay, inferScheduleFCode } from "@fl/core";
+import { planFor } from "../lib/plan.js";
+import { classifyChat, parseQuickLog, formatCentsDisplay, inferScheduleFCode, toolAllowed } from "@fl/core";
 import {
   LEDGER_TOOLS, TOOL_TIER, financialSummary, recentTransactions, upcomingObligations,
   marketableInventory, budgetStatuses, scheduleFReport, alertsList,
@@ -43,12 +44,17 @@ const ANTHROPIC_TOOLS: Anthropic.Tool[] = [
   { name: "financial_brief", description: "The weekly or monthly financial brief: health, cash outlook, plan variance, lowest-margin enterprise, line peak, and recommended actions.", input_schema: { type: "object", properties: { kind: { type: "string", enum: ["weekly", "monthly"] } } } },
   { name: "run_scenario", description: "What-if over the next 12 months: change prices, volume, or costs (percent), add an equipment purchase, or a new hire, and compare profit, cash, line, debt, and health before vs after. Read-only; nothing is saved.", input_schema: { type: "object", properties: { pricePct: { type: "number" }, volumePct: { type: "number" }, costPct: { type: "number" }, equipmentPrice: { type: "number" }, downPayment: { type: "number" }, ratePct: { type: "number" }, years: { type: "integer" }, hireAnnualWage: { type: "number" } } } },
   { name: "commodity_exposure", description: "Crop marketing position by commodity and crop year: expected production, sold, contracted, priced, unpriced share, market price, value of unpriced bushels, and open forward/HTA/basis contracts.", input_schema: { type: "object", properties: {} } },
+  { name: "sell_or_hold", description: "Sell stored grain or hay now or hold it: compares selling at today's price with a later price after storage, shrink, and interest. Defaults come from inventory and the operating line; pass priceLater (and months) to test a price.", input_schema: { type: "object", properties: { item: { type: "string" }, quantity: { type: "number" }, priceNow: { type: "number" }, priceLater: { type: "number" }, months: { type: "integer" }, storagePerUnitMonth: { type: "number" }, interestPct: { type: "number" }, shrinkPct: { type: "number" } } } },
+  { name: "set_budget", description: "Save a budget amount (dollars) for one income or expense category, for a year or one month. Only when the user asks to set or change a budget.", input_schema: { type: "object", properties: { category: { type: "string" }, amount: { type: "number" }, year: { type: "integer" }, month: { type: "integer" } }, required: ["category", "amount"] } },
+  { name: "save_scenario", description: "Save a what-if (same inputs as run_scenario) to the farm's scenario list with a short question. Only when the user asks to save it.", input_schema: { type: "object", properties: { question: { type: "string" }, pricePct: { type: "number" }, volumePct: { type: "number" }, costPct: { type: "number" }, equipmentPrice: { type: "number" }, downPayment: { type: "number" }, ratePct: { type: "number" }, years: { type: "integer" }, hireAnnualWage: { type: "number" } }, required: ["question"] } },
+  { name: "add_note", description: "Save a note for the farm (decisions, reminders, follow-ups). Only when the user asks to note or remember something.", input_schema: { type: "object", properties: { body: { type: "string" }, entity: { type: "string" }, entityId: { type: "string" } }, required: ["body"] } },
   { name: "market_research", description: "Current outside market information from the web (cash prices, futures, basis, weather, policy) for a specific question. Send only the market question, with commodity and location. Never include the farm's own figures, names, or records.", input_schema: { type: "object", properties: { question: { type: "string" } }, required: ["question"] } },
 ];
 
 /** Tools a role may use: viewers read; everyone else may also run forecasts and scenarios. */
-const toolsFor = (role: string | null) => ANTHROPIC_TOOLS.filter((t) =>
-  (t.name !== "market_research" || marketResearchEnabled()) && (TOOL_TIER[t.name] === "read" || (role && role !== "VIEWER")));
+const toolsFor = (role: string | null, plan: string) => ANTHROPIC_TOOLS.filter((t) =>
+  (t.name !== "market_research" || marketResearchEnabled()) && toolAllowed(plan, TOOL_TIER[t.name] ?? "read", t.name) &&
+  (TOOL_TIER[t.name] === "read" || (role != null && role !== "VIEWER" && (TOOL_TIER[t.name] !== "write" || ["OWNER", "ADMIN", "MEMBER"].includes(role)))));
 
 /** Grounded answer without an LLM: route to a tool, format its real figures. */
 async function chatDeterministic(farmId: string, message: string) {
@@ -125,7 +131,7 @@ function withTailBreakpoint(messages: Anthropic.MessageParam[]): Anthropic.Messa
 
 /** Grounded answer via Claude tool-calling over the same ledger tools. */
 async function chatClaude(farmId: string, message: string, role: string | null) {
-  const tools = toolsFor(role);
+  const tools = toolsFor(role, await planFor(farmId));
   const allowed = new Set(tools.map((t) => t.name));
   const client = new Anthropic();
   // Block form from the start, so the question renders identically whether or not

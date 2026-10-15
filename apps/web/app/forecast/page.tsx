@@ -1,3 +1,5 @@
+import { Upgrade } from "@/components/ui/upgrade";
+import { hasFeature } from "@fl/core";
 import clsx from "clsx";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
@@ -5,12 +7,12 @@ import { Money } from "@/components/ui/money";
 import { LinkTabs } from "@/components/ui/link-tabs";
 import { Table, Th, Td, pct } from "@/components/ui/table";
 import { CashProjectionChart } from "@/components/charts/cash-projection-chart";
-import { prisma } from "@fl/db";
-import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
+import { prisma, loadRevenuePlan } from "@fl/db";
+import { getDemoFarmId, getCurrentRole, canManage, getPlan } from "@/lib/data";
 import { getForecastContext, backtest, SCENARIO_KEYS } from "@/lib/forecast";
 import { fmtDate, fmtMonthDay } from "@/lib/format";
-import { DEFAULT_SCENARIOS, mape, enterpriseStatements, sumCents, type ScenarioKey, type CashPeriod } from "@fl/core";
-import { saveForecastSettings, saveForecastRun } from "./actions";
+import { DEFAULT_SCENARIOS, mape, enterpriseStatements, sumCents, type ScenarioKey, type CashPeriod, type StatementRow } from "@fl/core";
+import { saveForecastSettings, saveForecastRun, saveLivestockDrivers } from "./actions";
 import { TriangleAlert, CircleCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +48,8 @@ function CashGrid({ periods, labels, reserve }: { periods: CashPeriod[]; labels:
 
 export default async function ForecastPage({ searchParams }: { searchParams: { view?: string; scenario?: string } }) {
   const farmId = await getDemoFarmId();
-  const editable = canWrite(await getCurrentRole());
+  if (!hasFeature(await getPlan(), "forecast")) return (<><PageHeader title="Forecast" /><Upgrade feature="forecast" title="Forecast" /></>);
+  const editable = canManage(await getCurrentRole());
   const ctx = await getForecastContext(farmId);
   const view: View = (["months", "revenue", "accuracy"] as const).find((v) => v === searchParams.view) ?? "weeks";
   const scenario: ScenarioKey = SCENARIO_KEYS.find((k) => k === searchParams.scenario) ?? "base";
@@ -134,42 +137,58 @@ export default async function ForecastPage({ searchParams }: { searchParams: { v
       </>
     );
   } else if (view === "revenue") {
-    const f = ctx.twelve(scenario);
-    const enterprises = await prisma.enterprise.findMany({ where: { farmId } });
-    const from = ctx.asOf, to = f[f.length - 1]!.monthEnd;
-    const lastFrom = new Date(Date.UTC(from.getUTCFullYear() - 1, from.getUTCMonth() + 1, 0));
-    const actual = enterpriseStatements(ctx.inputs.rows, lastFrom, from);
-    const d = ctx.drivers[scenario];
-    const factor = (1 + d.pricePct) * (1 + d.volumePct);
-    const rows = enterprises.map((e) => ({ e, last: actual.get(e.id)?.revenueCents ?? 0n })).filter((r) => r.last !== 0n).sort((a, b) => Number(b.last - a.last));
-    const seasons = await prisma.cropSeason.findMany({ where: { farmId, year: { gte: from.getUTCFullYear() } }, orderBy: [{ year: "asc" }, { crop: "asc" }] });
+    const plan = await loadRevenuePlan(prisma, farmId, ctx.inputs.rows, ctx.asOf);
+    const editable = canManage(await getCurrentRole());
+    const livestock = plan.filter((r) => r.driver && r.driver.breedingFemales + r.driver.cullHead > 0);
+    const totalLast = sumCents(plan.map((r) => r.lastCents)), totalPlan = sumCents(plan.map((r) => r.planCents));
     body = (
-      <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
-        <Table minWidth={560}>
-          <thead><tr><Th>Enterprise</Th><Th right>Last 12 Months</Th><Th right>Next 12 Months</Th><Th right>Change</Th></tr></thead>
+      <div className={clsx("grid gap-6", livestock.length && "xl:grid-cols-[1fr_400px]")}>
+        <Table minWidth={640}>
+          <thead><tr><Th>Enterprise</Th><Th>Basis</Th><Th right>Last 12 Months</Th><Th right>Next 12 Months</Th><Th right>Change</Th></tr></thead>
           <tbody>
-            {rows.map((r) => {
-              const next = BigInt(Math.round(Number(r.last) * factor));
-              return <tr key={r.e.id} className="border-t border-border"><Td className="min-w-[240px]">{r.e.name}</Td><Td right><Money cents={r.last} /></Td><Td right strong><Money cents={next} /></Td><Td right muted>{pct(factor - 1)}</Td></tr>;
-            })}
-            <tr className="border-t-2 border-border font-semibold"><Td strong>Total</Td><Td right><Money cents={sumCents(rows.map((r) => r.last))} /></Td><Td right><Money cents={sumCents(f.map((m) => m.pnl.revenueCents))} /></Td><Td /></tr>
+            {plan.map((r) => (
+              <tr key={r.enterpriseId} className="border-t border-border align-top">
+                <Td className="min-w-[220px]">{r.name}{r.detail && <p className="mt-0.5 text-xs text-muted">{r.detail}</p>}</Td>
+                <Td muted className="whitespace-nowrap capitalize">{r.basis}</Td>
+                <Td right><Money cents={r.lastCents} /></Td>
+                <Td right strong><Money cents={r.planCents} /></Td>
+                <Td right muted>{r.lastCents ? pct(Number(r.planCents - r.lastCents) / Math.abs(Number(r.lastCents))) : "–"}</Td>
+              </tr>
+            ))}
+            <tr className="border-t-2 border-border font-semibold"><Td strong>Total</Td><Td /><Td right><Money cents={totalLast} /></Td><Td right><Money cents={totalPlan} /></Td><Td right muted>{totalLast ? pct(Number(totalPlan - totalLast) / Math.abs(Number(totalLast))) : "–"}</Td></tr>
           </tbody>
         </Table>
-        {seasons.length > 0 && (
-          <Card className="p-6">
-            <h3 className="font-serif text-lg font-semibold text-ink">Crop Plan</h3>
-            <dl className="mt-3 divide-y divide-border text-sm">
-              {seasons.map((s) => {
-                const exp = Number(s.acres) * Number(s.expectedYield ?? 0) * Number(s.expectedPrice ?? 0);
-                return (
-                  <div key={s.id} className="py-2">
-                    <dt className="flex justify-between"><span className="font-medium text-ink">{s.crop} {s.year}</span><span>{exp ? `$${Math.round(exp).toLocaleString()}` : "–"}</span></dt>
-                    <dd className="text-xs text-muted">{Number(s.acres).toLocaleString()} ac × {Number(s.expectedYield ?? 0).toLocaleString()} {(s.yieldUnit ?? "").replace("/ac", "")} × ${Number(s.expectedPrice ?? 0)}</dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </Card>
+        {livestock.length > 0 && (
+          <div className="space-y-6">
+            {livestock.map((r) => {
+              const d = r.driver!;
+              const f = (name: string, label: string, value: number, step = "any") => (
+                <label className="block text-sm"><span className="mb-1 block text-xs uppercase tracking-wider text-muted">{label}</span>
+                  <input name={name} type="number" step={step} defaultValue={value} disabled={!editable} className="input w-full text-right" /></label>
+              );
+              return (
+                <Card key={r.enterpriseId} className="p-6">
+                  <h3 className="font-serif text-lg font-semibold text-ink">{r.name.split(" (")[0]}</h3>
+                  <p className="text-sm text-muted">{Math.round(d.calves).toLocaleString()} calves to sell</p>
+                  <form action={saveLivestockDrivers} className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
+                    <input type="hidden" name="enterpriseId" value={r.enterpriseId} />
+                    {f("breedingFemales", "Breeding Females", d.breedingFemales, "1")}
+                    {f("weaningRate", "Weaning Rate %", Math.round(d.weaningRate * 1000) / 10)}
+                    {f("retained", "Retained", d.retained, "1")}
+                    {f("saleWeightLb", "Sale Weight (lb)", d.saleWeightLb, "1")}
+                    {f("pricePerCwt", "Price ($/cwt)", d.pricePerCwt)}
+                    {f("cullHead", "Culls (head)", d.cullHead, "1")}
+                    {f("cullPrice", "Cull Price ($/hd)", d.cullPrice)}
+                    {f("otherRevenue", "Other Sales ($)", d.otherRevenue)}
+                    {editable && <div className="col-span-2 flex justify-end gap-2 pt-1">
+                      <button name="reset" value="1" className="rounded-btn border border-border px-4 py-2 text-sm text-ink hover:bg-tag/40">Reset</button>
+                      <button className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-deep">Save</button>
+                    </div>}
+                  </form>
+                </Card>
+              );
+            })}
+          </div>
         )}
       </div>
     );
@@ -178,6 +197,14 @@ export default async function ForecastPage({ searchParams }: { searchParams: { v
     const err = (k: "revenueCents" | "copCents" | "netIncomeOperatingCents") => mape(bt.months.map((m) => ({ forecast: m.forecast[k], actual: m.actual[k] })));
     const annual = (k: "revenueCents" | "copCents" | "netIncomeOperatingCents") => ({ f: sumCents(bt.months.map((m) => m.forecast[k])), a: sumCents(bt.months.map((m) => m.actual[k])) });
     const runs = await prisma.forecastRun.count({ where: { farmId } });
+    // Driver accuracy (spec §14): planned yield and price vs. realized, by completed crop season.
+    const done = await prisma.cropSeason.findMany({ where: { farmId, dataType: { startsWith: "Actual" }, expectedYield: { not: null }, actualYield: { not: null } }, orderBy: [{ year: "desc" }, { crop: "asc" }] });
+    // Feed: last year's feed spend carried forward at the base cost inflation, vs. what the backtest year spent.
+    const isFeed = (r: StatementRow) => r.section === "COP" && /feed|hay|supplement|mineral/i.test(r.statementLine ?? "");
+    const bt0 = bt.asOf, prev0 = new Date(Date.UTC(bt0.getUTCFullYear() - 1, bt0.getUTCMonth() + 1, 0)), btEnd = bt.months[bt.months.length - 1]?.monthEnd ?? ctx.asOf;
+    const feedIn = (a: Date, b: Date) => -ctx.inputs.rows.filter((r) => isFeed(r) && r.entryType !== "adjustment" && r.date > a && r.date <= b).reduce((x, r) => x + r.amountCents, 0n);
+    const feedPrior = feedIn(prev0, bt0), feedActual = feedIn(bt0, btEnd);
+    const feedForecast = BigInt(Math.round(Number(feedPrior) * (1 + ctx.drivers.base.costInflationPct)));
     body = (
       <>
         <div className="mb-5 grid gap-4 md:grid-cols-3">
@@ -207,6 +234,40 @@ export default async function ForecastPage({ searchParams }: { searchParams: { v
           </tbody>
         </Table>
         <p className="mt-3 text-xs text-muted">Base case rerun as of {fmtDate(bt.asOf)} with what was known then · {runs} saved forecast{runs === 1 ? "" : "s"}</p>
+        {(done.length > 0 || feedActual > 0n) && (
+          <div className={clsx("mt-8 grid gap-6", done.length > 0 && feedActual > 0n && "xl:grid-cols-[1fr_340px]")}>
+            {done.length > 0 ? (
+              <Table minWidth={720}>
+                <thead><tr><Th>Crop Season</Th><Th right>Yield Plan</Th><Th right>Yield Actual</Th><Th right>Miss</Th><Th right>Price Plan</Th><Th right>Price Actual</Th><Th right>Miss</Th></tr></thead>
+                <tbody>
+                  {done.map((s) => {
+                    const ey = Number(s.expectedYield), ay = Number(s.actualYield), ep = s.expectedPrice == null ? null : Number(s.expectedPrice), ap = s.actualAvgPrice == null ? null : Number(s.actualAvgPrice);
+                    const unit = (s.yieldUnit ?? "").replace(/\s*\/\s*ac\b.*$/, "");
+                    return (
+                      <tr key={s.id} className="border-t border-border">
+                        <Td>{s.crop} {s.year}</Td>
+                        <Td right muted>{ey.toLocaleString()} <span className="text-xs">{unit}/ac</span></Td><Td right>{ay.toLocaleString()}</Td>
+                        <Td right className={clsx(ey && Math.abs(ay / ey - 1) > 0.1 && "text-rust")}>{ey ? pct(ay / ey - 1) : "–"}</Td>
+                        <Td right muted>{ep == null ? "–" : `$${ep.toFixed(2)}`}</Td><Td right>{ap == null ? "–" : `$${ap.toFixed(2)}`}</Td>
+                        <Td right className={clsx(ep && ap && Math.abs(ap / ep - 1) > 0.1 && "text-rust")}>{ep && ap ? pct(ap / ep - 1) : "–"}</Td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            ) : null}
+            {feedActual > 0n && (
+              <Card className="p-6">
+                <h3 className="font-serif text-lg font-semibold text-ink">Feed Cost</h3>
+                <dl className="mt-3 divide-y divide-border text-sm">
+                  <div className="flex justify-between py-2"><dt className="text-muted">Forecast</dt><dd><Money cents={feedForecast} /></dd></div>
+                  <div className="flex justify-between py-2"><dt className="text-muted">Actual</dt><dd><Money cents={feedActual} /></dd></div>
+                  <div className="flex justify-between py-2 font-medium"><dt className="text-ink">Miss</dt><dd>{feedForecast ? pct(Number(feedActual - feedForecast) / Number(feedForecast)) : "–"}</dd></div>
+                </dl>
+              </Card>
+            )}
+          </div>
+        )}
       </>
     );
   }

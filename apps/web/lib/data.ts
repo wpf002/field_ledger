@@ -22,3 +22,11 @@ export async function getCurrentRole() {
   return c?.role ?? "VIEWER";
 }
 export const canWrite = (role: string) => role !== "VIEWER";
+/** Plans, settings, integrations, and users: owners, admins, and members (not accountants or viewers). */
+export const canManage = (role: string) => role === "OWNER" || role === "ADMIN" || role === "MEMBER";
+
+/** The selected farm's subscription plan. */
+export async function getPlan() {
+  const { asPlan } = await import("@fl/core");
+  return asPlan((await getDemoFarm()).plan);
+}

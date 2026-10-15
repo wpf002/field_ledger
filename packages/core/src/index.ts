@@ -19,3 +19,5 @@ export * from "./decisions.js";
 export * from "./integrations.js";
 export * from "./table-import.js";
 export * from "./marketing.js";
+export * from "./revenue-plan.js";
+export * from "./plans.js";

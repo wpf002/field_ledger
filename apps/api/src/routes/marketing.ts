@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma, loadCommodityExposure } from "@fl/db";
 import { audit } from "../lib/audit.js";
+import { planFor } from "../lib/plan.js";
+import { hasFeature } from "@fl/core";
 
 /** Marketing contracts (spec §23) and the commodity exposure they feed. */
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).transform((s) => new Date(`${s}T00:00:00Z`));
@@ -23,6 +25,13 @@ const contractInput = z.object({
 });
 
 export async function registerMarketing(app: FastifyInstance) {
+  // Contracts and exposure are on Pro.
+  app.addHook("preHandler", async (req, reply) => {
+    const url = req.routeOptions.url ?? "";
+    if (!url.includes("/contracts") && !url.includes("/commodity-exposure")) return;
+    const { farmId } = req.params as { farmId: string };
+    if (!hasFeature(await planFor(farmId), "marketing")) return reply.code(403).send({ message: "Marketing is on the Pro plan." });
+  });
   app.get("/farms/:farmId/contracts", async (req) => {
     const { farmId } = req.params as { farmId: string };
     return prisma.marketingContract.findMany({ where: { farmId }, orderBy: [{ cropYear: "desc" }, { deliveryStart: "asc" }] });

@@ -1,3 +1,5 @@
+import { Upgrade } from "@/components/ui/upgrade";
+import { hasFeature } from "@fl/core";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card } from "@/components/ui/card";
@@ -9,7 +11,7 @@ import { SetBudgetButton } from "@/components/set-budget-button";
 import { AddGoalButton } from "@/components/add-goal-button";
 import { EnterprisePlanVsActual } from "@/components/enterprise-plan-vs-actual";
 import { prisma } from "@fl/db";
-import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
+import { getDemoFarmId, getCurrentRole, canManage, getPlan } from "@/lib/data";
 import { getBudgetStatuses } from "@/lib/budgets";
 import { fmtMonthYear } from "@/lib/format";
 import { sumCents } from "@fl/core";
@@ -22,7 +24,8 @@ const year = new Date().getUTCFullYear();
 
 export default async function BudgetsPage({ searchParams }: { searchParams: { year?: string } }) {
   const farmId = await getDemoFarmId();
-  const canEdit = canWrite(await getCurrentRole());
+  if (!hasFeature(await getPlan(), "budgets")) return (<><PageHeader title="Budgets" /><Upgrade feature="budgets" title="Budgets" /></>);
+  const canEdit = canManage(await getCurrentRole());
   const [goals, budgets] = await Promise.all([
     prisma.financialGoal.findMany({ where: { farmId }, orderBy: { name: "asc" } }),
     getBudgetStatuses(farmId),

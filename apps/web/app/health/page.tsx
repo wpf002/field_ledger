@@ -2,7 +2,8 @@ import clsx from "clsx";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
-import { getDemoFarmId } from "@/lib/data";
+import { getDemoFarmId, getPlan } from "@/lib/data";
+import { hasFeature } from "@fl/core";
 import { getFinancialSnapshot } from "@/lib/snapshot";
 import { prisma } from "@fl/db";
 import { fmtDate } from "@/lib/format";
@@ -20,7 +21,7 @@ export default async function HealthPage() {
   const s = await getFinancialSnapshot(farmId);
   const { health, ratios, bs } = s;
   // USDA ERS peer ratios (latest year synced), shown under the matching row.
-  const bench = await prisma.benchmark.findMany({ where: { farmId }, orderBy: { year: "desc" } });
+  const bench = hasFeature(await getPlan(), "benchmarking") ? await prisma.benchmark.findMany({ where: { farmId }, orderBy: { year: "desc" } }) : [];
   const peerYear = bench[0]?.year;
   const PEER: Record<string, [string, "ratio" | "pct"]> = {
     "Current Ratio": ["currentRatio", "ratio"], "Debt to Equity": ["debtToEquity", "ratio"], "Operating Margin": ["operatingProfitMargin", "pct"],

@@ -10,6 +10,7 @@ export type ContractRec = {
 export type SeasonRec = {
   crop: string; year: number; acres: number; expectedYield: number | null; totalProduction: number | null;
   qtySold: number | null; yieldUnit: string | null;
+  harvestStart?: Date | null; harvestEnd?: Date | null; stored?: number | null; // stored: units in storage at the as-of date
 };
 export type ExposureRow = {
   commodity: string; cropYear: number; unit: string;
@@ -17,8 +18,28 @@ export type ExposureRow = {
   avgContractPrice: number | null; marketPrice: number | null; unpricedValue: number | null; nextDelivery: Date | null;
 };
 
-/** "Cotton (dryland)" -> "Cotton"; "Soybeans (2025 crop)" -> "Soybeans". */
-export const commodityOf = (s: string) => s.split(/[\s(]/)[0]!.replace(/^./, (c) => c.toUpperCase());
+/** "Cotton (dryland)" -> "Cotton"; "sweet corn" -> "Sweet corn". */
+export const commodityOf = (s: string) => s.split("(")[0]!.trim().replace(/^./, (c) => c.toUpperCase());
+/** First word, lowercased: matches "Coastal bermuda round bales" to "Coastal bermudagrass hay". */
+export const commodityKey = (s: string) => s.trim().split(/[\s(]/)[0]!.toLowerCase();
+
+/**
+ * Units still to sell from a season. Before harvest: production less sales. Once
+ * harvest ends, only what's in storage (unsold perishable crop is gone). Mid-harvest:
+ * the share of harvest still ahead plus storage.
+ */
+export function remainingToSell(s: SeasonRec, asOf?: Date): number {
+  const prod = s.totalProduction ?? (s.expectedYield ?? 0) * s.acres;
+  const left = Math.max(0, prod - (s.qtySold ?? 0));
+  if (!asOf || !s.harvestEnd) return left;
+  const at = asOf.getTime(), end = s.harvestEnd.getTime();
+  if (at >= end) return Math.min(left, s.stored ?? 0);
+  if (s.harvestStart && at > s.harvestStart.getTime()) {
+    const start = s.harvestStart.getTime();
+    return Math.min(left, prod * ((end - at) / Math.max(1, end - start)) + (s.stored ?? 0));
+  }
+  return left;
+}
 
 /** Contract quantity still to deliver. Cancelled and delivered contracts carry none. */
 export const openQuantity = (c: ContractRec) => (c.status === "open" ? Math.max(0, c.quantity - c.delivered) : 0);
@@ -29,7 +50,7 @@ export const openQuantity = (c: ContractRec) => (c.status === "open" ? Math.max(
  */
 export const isPriced = (c: ContractRec) => c.price != null && (c.type === "forward" || c.type === "hta" || c.type === "delayed_price");
 
-export function commodityExposure(seasons: SeasonRec[], contracts: ContractRec[], marketPrice: (commodity: string) => number | null): ExposureRow[] {
+export function commodityExposure(seasons: SeasonRec[], contracts: ContractRec[], marketPrice: (commodity: string) => number | null, asOf?: Date): ExposureRow[] {
   const keys = new Map<string, { commodity: string; cropYear: number }>();
   for (const s of seasons) keys.set(`${commodityOf(s.crop)}|${s.year}`, { commodity: commodityOf(s.crop), cropYear: s.year });
   for (const c of contracts) keys.set(`${commodityOf(c.commodity)}|${c.cropYear}`, { commodity: commodityOf(c.commodity), cropYear: c.cropYear });
@@ -41,14 +62,15 @@ export function commodityExposure(seasons: SeasonRec[], contracts: ContractRec[]
     const contracted = cs.reduce((a, c) => a + openQuantity(c), 0);
     const pricedOpen = cs.filter(isPriced).reduce((a, c) => a + openQuantity(c), 0);
     const priced = sold + pricedOpen;
-    const unpriced = Math.max(0, expected - priced);
+    const remaining = ss.reduce((a, s) => a + remainingToSell(s, asOf), 0);
+    const unpriced = Math.max(0, remaining - pricedOpen);
     const pricedCs = cs.filter((c) => isPriced(c) && c.quantity > 0);
     const q = pricedCs.reduce((a, c) => a + c.quantity, 0);
     const mkt = marketPrice(commodity);
     const next = cs.filter((c) => openQuantity(c) > 0 && c.deliveryStart).map((c) => c.deliveryStart!).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
     return {
-      commodity, cropYear, unit: (ss[0]?.yieldUnit ?? cs[0]?.unit ?? "").replace(/\/\s*ac$/, "").trim(),
-      expected, sold, contracted, priced, unpriced, exposedPct: expected > 0 ? unpriced / expected : null,
+      commodity, cropYear, unit: (ss[0]?.yieldUnit ?? cs[0]?.unit ?? "").replace(/\s*\/\s*ac\b/, "").trim(),
+      expected, sold, contracted, priced, unpriced, exposedPct: expected > 0 ? Math.min(1, unpriced / expected) : null,
       avgContractPrice: q ? pricedCs.reduce((a, c) => a + c.price! * c.quantity, 0) / q : null,
       marketPrice: mkt, unpricedValue: mkt != null ? unpriced * mkt : null, nextDelivery: next,
     };

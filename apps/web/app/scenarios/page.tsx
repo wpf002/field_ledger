@@ -1,11 +1,14 @@
+import { Upgrade } from "@/components/ui/upgrade";
+import { hasFeature } from "@fl/core";
 import clsx from "clsx";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { LinkTabs } from "@/components/ui/link-tabs";
 import { Table, Th, Td } from "@/components/ui/table";
-import { prisma, evaluateLever, leverContext, type LeverTemplate } from "@fl/db";
-import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
+import { prisma, evaluateLever, leverContext, storedCommodities, type LeverTemplate } from "@fl/db";
+import { sellOrHold } from "@fl/core";
+import { getDemoFarmId, getCurrentRole, canManage, getPlan } from "@/lib/data";
 import { getForecastContext } from "@/lib/forecast";
 import { runWhatIf, type WhatIf, type Outcome } from "@fl/db";
 import { addLever, removeLever } from "./actions";
@@ -29,7 +32,8 @@ function Field({ name, label, value, step = "any", suffix }: { name: string; lab
 
 export default async function ScenariosPage({ searchParams }: { searchParams: SP }) {
   const farmId = await getDemoFarmId();
-  const editable = canWrite(await getCurrentRole());
+  if (!hasFeature(await getPlan(), "scenarios")) return (<><PageHeader title="Scenarios" /><Upgrade feature="scenarios" title="Scenarios" /></>);
+  const editable = canManage(await getCurrentRole());
   const view = searchParams.view === "questions" ? "questions" : "whatif";
 
   let body: React.ReactNode;
@@ -109,13 +113,20 @@ export default async function ScenariosPage({ searchParams }: { searchParams: SP
       </div>
     );
   } else {
-    const [levers, lc, revLines, costLines] = await Promise.all([
+    const [levers, lc, revLines, costLines, stored] = await Promise.all([
       prisma.scenarioLever.findMany({ where: { farmId }, orderBy: [{ externalId: "asc" }, { id: "asc" }] }),
       leverContext(prisma, farmId),
       prisma.account.findMany({ where: { farmId, section: "REV" }, distinct: ["statementLine"], select: { statementLine: true } }),
       prisma.account.findMany({ where: { farmId, section: { in: ["COP", "OVH"] } }, distinct: ["statementLine"], select: { statementLine: true } }),
+      storedCommodities(prisma, farmId),
     ]);
     const year = lc.asOf.getUTCFullYear() - 1;
+    // Sell or hold (spec §27): stored grain at today's mark vs. a later price, less storage, shrink, and interest.
+    const lot = stored.find((x) => x.key === searchParams.lot) ?? stored[0];
+    const soh = lot ? (() => {
+      const o = { quantity: n(searchParams.qty, lot.quantity), priceNow: n(searchParams.now, lot.priceNow), priceLater: n(searchParams.later, lot.priceNow), months: n(searchParams.months, 4), storagePerUnitMonth: n(searchParams.storage, 0.03), interestPct: n(searchParams.interest, lot.interestPct), shrinkPct: n(searchParams.shrink, 1) / 100 };
+      return { o, r: sellOrHold(o) };
+    })() : null;
     body = (
       <>
         <Table minWidth={900}>
@@ -136,7 +147,7 @@ export default async function ScenariosPage({ searchParams }: { searchParams: SP
           </tbody>
         </Table>
         {editable && (
-          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <div className={clsx("mt-6 grid gap-4", soh ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
             <Card className="p-5">
               <h3 className="font-serif text-base font-semibold text-ink">Price or Cost Move</h3>
               <form action={addLever} className="mt-3 grid grid-cols-2 gap-3 text-sm">
@@ -159,6 +170,26 @@ export default async function ScenariosPage({ searchParams }: { searchParams: SP
                 <button className="col-span-2 rounded-btn bg-primary px-4 py-2 font-medium text-white hover:bg-primary-deep">Add</button>
               </form>
             </Card>
+            {soh && lot && (
+              <Card className="p-5">
+                <h3 className="font-serif text-base font-semibold text-ink">Sell or Hold</h3>
+                <form method="get" className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <input type="hidden" name="view" value="questions" />
+                  <select name="lot" defaultValue={lot.key} className="input col-span-2">{stored.map((x) => <option key={x.key} value={x.key}>{x.item.split(" (")[0]} · {Math.round(x.quantity).toLocaleString()} {x.unit}</option>)}</select>
+                  <input name="later" type="number" step="any" defaultValue={soh.o.priceLater} aria-label="Price Later" placeholder="Price Later" className="input" />
+                  <input name="months" type="number" step="1" defaultValue={soh.o.months} aria-label="Months" placeholder="Months" className="input" />
+                  <input name="storage" type="number" step="any" defaultValue={soh.o.storagePerUnitMonth} aria-label="Storage per Unit per Month" placeholder="Storage / Unit / Mo" className="input" />
+                  <input name="shrink" type="number" step="any" defaultValue={soh.o.shrinkPct * 100} aria-label="Shrink %" placeholder="Shrink %" className="input" />
+                  <button className="col-span-2 rounded-btn bg-primary px-4 py-2 font-medium text-white hover:bg-primary-deep">Compare</button>
+                </form>
+                <dl className="mt-3 divide-y divide-border text-sm">
+                  <div className="flex justify-between py-1.5"><dt className="text-muted">Sell Now at ${soh.o.priceNow.toFixed(2)}</dt><dd><Money cents={soh.r.sellNowCents} /></dd></div>
+                  <div className="flex justify-between py-1.5"><dt className="text-muted">Hold {soh.o.months} Mo</dt><dd><Money cents={soh.r.holdCents} /></dd></div>
+                  <div className="flex justify-between py-1.5 font-medium"><dt className="text-ink">{soh.r.better === "hold" ? "Hold Gains" : "Selling Saves"}</dt><dd className={soh.r.better === "hold" ? "text-positive" : ""}><Money cents={soh.r.holdGainCents < 0n ? -soh.r.holdGainCents : soh.r.holdGainCents} /></dd></div>
+                  <div className="flex justify-between py-1.5"><dt className="text-muted">Break-Even Later Price</dt><dd>{soh.r.breakEvenPrice == null ? "–" : `$${soh.r.breakEvenPrice.toFixed(2)}`}</dd></div>
+                </dl>
+              </Card>
+            )}
           </div>
         )}
       </>

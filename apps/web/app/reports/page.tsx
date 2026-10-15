@@ -2,9 +2,10 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, SectionHeading } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
-import { getDemoFarmId } from "@/lib/data";
+import { getDemoFarmId, getPlan } from "@/lib/data";
+import { hasFeature } from "@fl/core";
 import { getReports, getReportYears } from "@/lib/reports";
-import { Receipt, Download, Lock, ArrowLeft, Landmark, FileDown, Printer } from "lucide-react";
+import { Receipt, Download, Lock, ArrowLeft, Landmark, FileDown, Printer, Layers } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,16 @@ function Dl({ farmId, type, year }: { farmId: string; type: string; year: number
     <a href={`${API}/farms/${farmId}/reports/${type}/export?year=${year}`} className="inline-flex items-center gap-1.5 rounded-btn border border-border px-3 py-1.5 text-xs text-ink hover:bg-tag/40">
       <Download size={13} /> CSV
     </a>
+  );
+}
+const BTN = "inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40";
+const BTN_PRIMARY = "inline-flex items-center gap-2 rounded-btn bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-deep";
+function ReportCard({ title, icon, allowed, children }: { title: string; icon: React.ReactNode; allowed: boolean; children: React.ReactNode }) {
+  return (
+    <Card className="p-6">
+      <SectionHeading icon={icon} title={title} />
+      <div className="mt-4 flex flex-wrap gap-2">{allowed ? children : <Link href="/account#plan" className={BTN}><Lock size={14} /> Business Plan</Link>}</div>
+    </Card>
   );
 }
 const LineRow = ({ label, sub, cents, bold }: { label: string; sub?: string; cents: bigint; bold?: boolean }) => (
@@ -30,6 +41,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ye
   const year = years.includes(Number(searchParams.year)) ? Number(searchParams.year) : years[0]!;
   const { scheduleF, locked } = await getReports(farmId, year);
   const YEARS = years;
+  const business = hasFeature(await getPlan(), "lender_reporting");
 
   return (
     <>
@@ -47,30 +59,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ye
 
       {locked && (
         <div className="mb-6 inline-flex items-center gap-2 rounded-btn bg-mint px-3 py-2 text-sm text-primary">
-          <Lock size={14} /> {year} is a locked accounting period — these figures are final.
+          <Lock size={14} /> {year} Locked
         </div>
       )}
 
-      {/* Tax-season export — the ledger is already mapped to Schedule F lines. */}
-      <Card className="mb-6 p-6">
-        <SectionHeading icon={<Landmark size={18} className="text-primary" />} title={`Tax season — send ${year} to TurboTax & H&R Block`} />
-        <p className="mt-2 max-w-2xl text-sm text-muted">Every category is already mapped to its IRS Schedule&nbsp;F line, so filing is a hand-off, not re-entry. Download the file for your tax software, or a worksheet for yourself or your preparer.</p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <a href={`${API}/farms/${farmId}/reports/schedule-f/txf?year=${year}`} className="inline-flex items-center gap-2 rounded-btn bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-deep">
-            <FileDown size={15} /> TurboTax / H&amp;R Block file (.txf)
-          </a>
-          <Link href={`/reports/schedule-f?year=${year}`} className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40">
-            <Printer size={15} /> Printable worksheet (PDF)
-          </Link>
-          <a href={`${API}/farms/${farmId}/reports/schedule-f/export?year=${year}`} className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40">
-            <Download size={15} /> Schedule F worksheet (CSV)
-          </a>
-        </div>
-        <p className="mt-3 text-xs text-muted">In TurboTax or H&amp;R Block desktop, import the <span className="font-medium text-ink">.txf</span> via <span className="font-medium text-ink">File → Import → From Accounting Software</span>. Depreciation is entered separately through your software&rsquo;s asset / Form&nbsp;4562 flow.</p>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-6">
-        {/* Schedule F */}
+      <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <Card className="p-6">
           <SectionHeading icon={<Receipt size={18} className="text-primary" />} title="Schedule F Summary" action={<Dl farmId={farmId} type="schedule-f" year={year} />} />
           <p className="mt-3 text-xs uppercase tracking-wider text-muted">Part I — Income</p>
@@ -85,6 +78,21 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ye
           </div>
         </Card>
 
+        <div className="space-y-6">
+          <ReportCard title="Lender Package" allowed={business} icon={<Landmark size={18} className="text-primary" />}>
+            <Link href={`/reports/lender?year=${year}`} className={BTN_PRIMARY}><Printer size={15} /> Open Package</Link>
+          </ReportCard>
+          <ReportCard title="Consolidated" allowed={business} icon={<Layers size={18} className="text-primary" />}>
+            <Link href="/reports/consolidated" className={BTN}><Layers size={15} /> All Farms</Link>
+          </ReportCard>
+          <ReportCard title="Tax Files" allowed={business} icon={<FileDown size={18} className="text-primary" />}>
+            <a href={`${API}/farms/${farmId}/reports/schedule-f/txf?year=${year}`} title="TurboTax or H&R Block desktop: File → Import → From Accounting Software. Enter depreciation through Form 4562." className={BTN_PRIMARY}>
+              <FileDown size={15} /> TurboTax File (.txf)
+            </a>
+            <Link href={`/reports/schedule-f?year=${year}`} className={BTN}><Printer size={15} /> Worksheet</Link>
+            <a href={`${API}/farms/${farmId}/reports/schedule-f/export?year=${year}`} className={BTN}><Download size={15} /> Worksheet CSV</a>
+          </ReportCard>
+        </div>
       </div>
     </>
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loanPayment, equipmentPurchase, repairVsReplace, priceShock, costShock, leaseVsProduce, variance, priceVolume } from "./decisions.js";
+import { loanPayment, equipmentPurchase, repairVsReplace, priceShock, costShock, leaseVsProduce, variance, priceVolume, sellOrHold } from "./decisions.js";
 
 describe("loanPayment", () => {
   it("matches a standard annuity", () => {
@@ -41,5 +41,17 @@ describe("levers", () => {
     expect(pv.volumePct).toBeCloseTo(0.1);
     expect(pv.pricePct).toBeCloseTo(0.1);
     expect(pv.volumeCents + pv.priceCents).toBe(210_00n);
+  });
+});
+
+describe("sell or hold", () => {
+  it("holding pays only above the carry break-even", () => {
+    const r = sellOrHold({ quantity: 10000, priceNow: 4.0, priceLater: 4.5, months: 5, storagePerUnitMonth: 0.03, interestPct: 8, shrinkPct: 0.01 });
+    expect(r.sellNowCents).toBe(4_000_000n);
+    expect(r.storageCents).toBe(150_000n);
+    expect(r.interestCents).toBe(133_333n);
+    expect(r.breakEvenPrice).toBeCloseTo((40000 + 1500 + 1333.33) / 9900, 3);
+    expect(r.better).toBe("hold");
+    expect(sellOrHold({ quantity: 10000, priceNow: 4.0, priceLater: 4.1, months: 5, storagePerUnitMonth: 0.03, interestPct: 8, shrinkPct: 0.01 }).better).toBe("sell");
   });
 });

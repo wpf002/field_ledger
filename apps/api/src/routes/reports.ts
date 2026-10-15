@@ -1,4 +1,6 @@
 import type { FastifyInstance } from "fastify";
+import { hasFeature } from "@fl/core";
+import { planFor } from "../lib/plan.js";
 import { prisma, pnlWhere } from "@fl/db";
 import { profitAndLoss, scheduleFSummary, cashFlowStatement, enterpriseProfitability, centsToDecimal, toCsv, scheduleFToTxf, type ReportTxn } from "@fl/core";
 
@@ -35,6 +37,7 @@ export async function registerReports(app: FastifyInstance) {
 
   // CSV export per report type.
   app.get("/farms/:farmId/reports/:type/export", async (req, reply) => {
+    if ((req.params as { type: string }).type === "schedule-f" && !hasFeature(await planFor((req.params as { farmId: string }).farmId), "tax_exports")) return reply.code(403).send({ message: "Tax exports are on the Business plan." });
     const { farmId, type } = req.params as { farmId: string; type: string };
     const year = Number((req.query as { year?: string }).year ?? new Date().getUTCFullYear());
     const txns = await loadReportTxns(farmId);
@@ -76,6 +79,7 @@ export async function registerReports(app: FastifyInstance) {
 
   // Schedule F as a TXF file — imports into TurboTax / H&R Block desktop.
   app.get("/farms/:farmId/reports/schedule-f/txf", async (req, reply) => {
+    if (!hasFeature(await planFor((req.params as { farmId: string }).farmId), "tax_exports")) return reply.code(403).send({ message: "Tax exports are on the Business plan." });
     const { farmId } = req.params as { farmId: string };
     const year = Number((req.query as { year?: string }).year ?? new Date().getUTCFullYear());
     const txns = await loadReportTxns(farmId);

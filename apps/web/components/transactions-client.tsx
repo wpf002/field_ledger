@@ -21,7 +21,9 @@ export type Txn = {
   relatedInventory: { name: string } | null;
   account: { code: string; label: string; kind: "INCOME" | "EXPENSE" };
   reconciled?: boolean;
+  landParcel?: { id: string; name: string } | null;
 };
+export type Field = { id: string; name: string };
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
@@ -29,7 +31,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
  *  feed" → "Mixed Cube Feed") regardless of how they were entered. */
 const titleCase = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 
-export function TransactionsClient({ farmId, initial, accounts, canWrite = true }: { farmId: string; initial: Txn[]; accounts: Account[]; canWrite?: boolean }) {
+export function TransactionsClient({ farmId, initial, accounts, fields = [], canWrite = true }: { farmId: string; initial: Txn[]; accounts: Account[]; fields?: Field[]; canWrite?: boolean }) {
   const [rows, setRows] = useState<Txn[]>(initial);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Record<string, string>>({});
@@ -44,8 +46,9 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
       { param: "type", label: "All Types", options: [{ value: "INCOME", label: "Income" }, { value: "EXPENSE", label: "Expense" }] },
       { param: "category", label: "All Categories", options: cats.map((c) => ({ value: c, label: c })) },
       { param: "year", label: "All Years", options: years.map((y) => ({ value: y, label: y })) },
+      ...(fields.length ? [{ param: "field", label: "All Fields", options: fields.map((f) => ({ value: f.id, label: f.name })) }] : []),
     ];
-  }, [rows]);
+  }, [rows, fields]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -53,7 +56,8 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
       (!q || t.description.toLowerCase().includes(q) || t.account.label.toLowerCase().includes(q) || (t.relatedInventory?.name ?? t.relatedLabel ?? "").toLowerCase().includes(q)) &&
       (!filter.type || t.account.kind === filter.type) &&
       (!filter.category || t.account.label === filter.category) &&
-      (!filter.year || t.date.startsWith(filter.year)));
+      (!filter.year || t.date.startsWith(filter.year)) &&
+      (!filter.field || t.landParcel?.id === filter.field));
   }, [rows, query, filter]);
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -105,7 +109,7 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
               return (
                 <tr key={t.id} className="border-t border-border">
                   <td className="whitespace-nowrap px-5 py-3.5 text-ink">{fmtDate(t.date)}</td>
-                  <td className="px-5 py-3.5 text-ink">{t.description}</td>
+                  <td className="px-5 py-3.5 text-ink">{t.description}{t.landParcel && <span className="block text-xs text-muted">{t.landParcel.name}</span>}</td>
                   <td className="px-5 py-3.5"><span className="text-muted/60">{related ? <span className="inline-block whitespace-nowrap rounded-pill bg-mint px-3 py-1 text-xs text-positive">{titleCase(related)}</span> : "—"}</span></td>
                   <td className="px-5 py-3.5"><CategoryPill>{t.account.label}</CategoryPill></td>
                   <td className="px-5 py-3.5 text-right">
@@ -139,6 +143,7 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
           key={editing?.id ?? "new"}
           farmId={farmId}
           accounts={accounts}
+          fields={fields}
           edit={editing ?? undefined}
           onClose={() => { setAdding(false); setEditing(null); }}
           onSaved={() => { setAdding(false); setEditing(null); refresh(); }}
@@ -148,7 +153,7 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
   );
 }
 
-function TxnModal({ farmId, accounts, edit, onClose, onSaved }: { farmId: string; accounts: Account[]; edit?: Txn; onClose: () => void; onSaved: () => void }) {
+function TxnModal({ farmId, accounts, fields, edit, onClose, onSaved }: { farmId: string; accounts: Account[]; fields: Field[]; edit?: Txn; onClose: () => void; onSaved: () => void }) {
   const editing = !!edit;
   const [kind, setKind] = useState<"INCOME" | "EXPENSE">(edit?.account.kind ?? "EXPENSE");
   const [description, setDescription] = useState(edit?.description ?? "");
@@ -156,6 +161,7 @@ function TxnModal({ farmId, accounts, edit, onClose, onSaved }: { farmId: string
   const [accountCode, setAccountCode] = useState(edit?.account.code ?? "");
   const [date, setDate] = useState(edit ? edit.date.slice(0, 10) : new Date().toISOString().slice(0, 10));
   const [related, setRelated] = useState(edit?.relatedLabel ?? "");
+  const [field, setField] = useState(edit?.landParcel?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -174,6 +180,7 @@ function TxnModal({ farmId, accounts, edit, onClose, onSaved }: { farmId: string
           date, description, accountCode: accountCode || choices[0]?.code,
           amountCents: signed.toString(),
           relatedLabel: related || undefined,
+          landParcelId: field || null,
         }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.message ?? (editing ? "Update failed" : "Create failed"));
@@ -212,7 +219,17 @@ function TxnModal({ farmId, accounts, edit, onClose, onSaved }: { farmId: string
                 {choices.map((a) => <option key={a.code} value={a.code}>{a.label}</option>)}
               </select>
             </Field>
-            <Field label="Related Item (optional)"><input value={related} onChange={(e) => setRelated(e.target.value)} className="input" placeholder="e.g. Angus Cattle" /></Field>
+            <div className={fields.length ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : ""}>
+              <Field label="Related Item (optional)"><input value={related} onChange={(e) => setRelated(e.target.value)} className="input" placeholder="e.g. Angus Cattle" /></Field>
+              {fields.length > 0 && (
+                <Field label="Field (optional)">
+                  <select value={field} onChange={(e) => setField(e.target.value)} className="input">
+                    <option value="">None</option>
+                    {fields.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </Field>
+              )}
+            </div>
 
             {error && <p className="text-sm text-negative">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">

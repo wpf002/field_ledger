@@ -28,13 +28,19 @@ function audit(farmId: string, action: string, entityId: string, before: unknown
 // Serialize a transaction's BigInt before stashing it in the JSON audit trail.
 const snap = (t: { amountCents: bigint } & Record<string, unknown>) => ({ ...t, amountCents: t.amountCents.toString() });
 
+/** A field id is kept only when it belongs to this farm. */
+async function ownParcel(farmId: string, id: string | null | undefined) {
+  if (!id) return null;
+  return (await prisma.landParcel.findFirst({ where: { id, farmId }, select: { id: true } }))?.id ?? null;
+}
+
 export async function registerTransactions(app: FastifyInstance) {
   app.get("/farms/:farmId/transactions", async (req) => {
     const { farmId } = req.params as { farmId: string };
     return prisma.transaction.findMany({
       where: { farmId },
       orderBy: { date: "desc" },
-      include: { account: true, relatedInventory: true },
+      include: { account: true, relatedInventory: true, landParcel: { select: { id: true, name: true } } },
     });
   });
 
@@ -62,6 +68,7 @@ export async function registerTransactions(app: FastifyInstance) {
         vendor: parsed.data.vendor,
         relatedInventoryId: parsed.data.relatedInventoryId,
         relatedLabel: (req.body as { relatedLabel?: string }).relatedLabel,
+        landParcelId: await ownParcel(farmId, parsed.data.landParcelId),
       },
     });
     await audit(farmId, "create", tx.id, null, snap(tx));
@@ -101,6 +108,7 @@ export async function registerTransactions(app: FastifyInstance) {
         accountId,
         amountCents,
         relatedLabel: d.relatedLabel,
+        landParcelId: d.landParcelId === undefined ? undefined : await ownParcel(farmId, d.landParcelId),
       },
     });
     await audit(farmId, "update", id, snap(existing), snap(updated));

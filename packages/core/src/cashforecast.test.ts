@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rollCash, openItemFlows, scheduledDebtFlows, operatingPlanFlows, mape, type CashItem } from "./cashforecast.js";
+import { rollCash, openItemFlows, scheduledDebtFlows, operatingPlanFlows, mape, withContracts, type CashItem } from "./cashforecast.js";
 import type { StatementRow } from "./statements.js";
 
 const D = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -39,5 +39,21 @@ describe("known items", () => {
   });
   it("mape ignores zero actuals", () => {
     expect(mape([{ forecast: 110n, actual: 100n }, { forecast: 5n, actual: 0n }])).toBeCloseTo(0.1);
+  });
+});
+
+describe("contract deliveries", () => {
+  it("add a known receipt and offset the replayed sales of the same enterprise", () => {
+    const asOf = new Date("2026-09-30");
+    const plan = [
+      { date: new Date("2026-11-10"), group: "Customer collections", source: "operating plan" as const, description: "x", cents: 3_000_000n, enterpriseId: "SOY" },
+      { date: new Date("2027-01-20"), group: "Customer collections", source: "operating plan" as const, description: "x", cents: 2_000_000n, enterpriseId: "SOY" },
+      { date: new Date("2026-11-10"), group: "Customer collections", source: "operating plan" as const, description: "x", cents: 1_000_000n, enterpriseId: "CORN" },
+    ];
+    const out = withContracts(plan, [{ date: new Date("2026-11-30"), cents: 4_180_000n, enterpriseId: "SOY", description: "FC-2611" }], asOf, new Date("2027-09-30"));
+    const soy = out.filter((i) => i.enterpriseId === "SOY").reduce((a, i) => a + i.cents, 0n);
+    expect(soy).toBe(5_000_000n); // 3.0M + 2.0M replayed, of which 4.18M is now the contract
+    expect(out.find((i) => i.group === "Contracted sales")?.cents).toBe(4_180_000n);
+    expect(out.filter((i) => i.enterpriseId === "CORN")[0]!.cents).toBe(1_000_000n);
   });
 });

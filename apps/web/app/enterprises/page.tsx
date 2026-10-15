@@ -6,7 +6,9 @@ import { LinkTabs } from "@/components/ui/link-tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, Th, Td, usd, num, pct } from "@/components/ui/table";
 import { prisma } from "@fl/db";
-import { getDemoFarmId } from "@/lib/data";
+import { getDemoFarmId, getPlan } from "@/lib/data";
+import { Upgrade } from "@/components/ui/upgrade";
+import { hasFeature } from "@fl/core";
 import { getEnterpriseContext, yearPeriod } from "@/lib/enterprise";
 import { enterpriseStatements, cropEconomics, headEconomics, yieldNeeded, priceNeeded, breakEvenPerLb, type EnterpriseStatement } from "@fl/core";
 import { Tractor } from "lucide-react";
@@ -41,10 +43,13 @@ export default async function EnterprisesPage({ searchParams }: { searchParams: 
   );
 
   let body: React.ReactNode = null;
+  const unitsAllowed = hasFeature(await getPlan(), "unit_economics");
   const crops = cropEconomics(ctx.inputs.rows, ctx.cropSeasons, ctx.depreciationByEnterpriseYear).filter((c) => c.season.year === year);
   const livestock = ctx.unitCounts.filter((u) => u.year === year).map((u) => headEconomics(ctx.inputs.rows, u.enterpriseId, period.from, period.to, u.count, u.basis));
 
-  if (view === "profit") {
+  if (view !== "profit" && !unitsAllowed) {
+    body = <Upgrade feature="unit_economics" title="Unit Economics" />;
+  } else if (view === "profit") {
     const st = enterpriseStatements(ctx.inputs.rows, period.from, period.to);
     const overheadEnt = ents.find((e) => e.code === "OVH" || e.type?.toLowerCase() === "overhead");
     const ovh = overheadEnt ? st.get(overheadEnt.id) : undefined;

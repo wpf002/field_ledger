@@ -26,6 +26,10 @@ export default async function LandPage() {
   const name = new Map(enterprises.map((e) => [e.id, e.name]));
   const { bs, ttm, asOf, ratios } = snap;
   const st = enterpriseStatements(snap.rows, ttm.from, ttm.to);
+  // Entries tagged to a field give that field its own results; the rest share their enterprise's per acre.
+  const tagged = await prisma.transaction.findMany({ where: { farmId, landParcelId: { not: null }, entryType: "ledger", date: { gt: ttm.from, lte: ttm.to }, account: { section: { in: ["REV", "COP", "OVH"] } } }, select: { landParcelId: true, amountCents: true, account: { select: { section: true } } } });
+  const byField = new Map<string, { rev: bigint; net: bigint }>();
+  for (const t of tagged) { const x = byField.get(t.landParcelId!) ?? { rev: 0n, net: 0n }; if (t.account.section === "REV") x.rev += t.amountCents; x.net += t.amountCents; byField.set(t.landParcelId!, x); }
   const isTtm = incomeStatement(snap.rows, ttm.from, ttm.to);
   const acresByEnt = new Map<string, number>();
   for (const p of parcels) if (p.enterpriseId) acresByEnt.set(p.enterpriseId, (acresByEnt.get(p.enterpriseId) ?? 0) + Number(p.acres));
@@ -52,11 +56,13 @@ export default async function LandPage() {
         <thead><tr><Th>Parcel</Th><Th right>Acres</Th><Th>Use</Th><Th>Tenure</Th><Th>Enterprise</Th><Th right>Revenue/Ac</Th><Th right>Net/Ac</Th></tr></thead>
         <tbody>
           {parcels.map((p) => {
-            const s = p.enterpriseId ? st.get(p.enterpriseId) : undefined;
-            const ac = p.enterpriseId ? acresByEnt.get(p.enterpriseId) ?? 0 : 0;
+            const f = byField.get(p.id);
+            const e = p.enterpriseId ? st.get(p.enterpriseId) : undefined;
+            const s = f ? { revenueCents: f.rev, netIncomeOperatingCents: f.net } : e;
+            const ac = f ? Number(p.acres) : p.enterpriseId ? acresByEnt.get(p.enterpriseId) ?? 0 : 0;
             return (
               <tr key={p.id} className="border-t border-border">
-                <Td className="max-w-[320px]"><span className="font-medium">{p.name}</span></Td>
+                <Td className="max-w-[320px]"><span className="font-medium">{p.name}</span>{f && <span className="block text-xs text-muted">Field entries</span>}</Td>
                 <Td right>{num(Number(p.acres), Number(p.acres) % 1 ? 1 : 0)}</Td>
                 <Td muted className="max-w-[260px]">{p.use ?? "–"}</Td>
                 <Td muted>{p.tenure ?? "–"}</Td>

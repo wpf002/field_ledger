@@ -7,7 +7,7 @@ export function Modal({ open, onClose, title, children, wide = false }: { open: 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
-      <Card className={`w-full ${wide ? "max-w-lg" : "max-w-md"} p-6`}>
+      <Card className={`w-full ${wide ? "max-w-2xl" : "max-w-md"} p-6`}>
         <div onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between">
             <h3 className="font-serif text-2xl font-semibold text-ink">{title}</h3>

@@ -20,6 +20,9 @@ import { registerIntegrations } from "./routes/integrations.js";
 import { registerPublicApi } from "./routes/public-api.js";
 import { registerOAuth } from "./routes/oauth.js";
 import { registerMarketing } from "./routes/marketing.js";
+import { registerNotes } from "./routes/notes.js";
+import { registerBilling } from "./routes/billing.js";
+import { registerMembers } from "./routes/members.js";
 import { bigintReplySerializer } from "./plugins/bigint-serializer.js";
 import { verifyToken, tokenFromRequest, roleForFarm } from "./lib/session.js";
 
@@ -39,6 +42,7 @@ await app.register(sensible);
 // POSTs: chat, import preview, reconcile match) but not mutate. Routes outside
 // /farms/:farmId (/integrations/providers, OAuth callback, /hooks, /v1, /mcp)
 // carry their own auth.
+const ACCOUNTANT_WRITES = ["transactions", "invoices", "import", "reconcile", "liabilities", "leases", "inventory", "contracts", "notes", "assistant/quick-log", "assistant/receipt", "periods", "accounts"];
 const READ_ONLY_POST = ["/assistant/chat", "/assistant/quick-log", "/assistant/receipt", "/import/preview", "/reconcile/match"];
 app.addHook("preHandler", async (req, reply) => {
   if (req.method === "OPTIONS") return;
@@ -51,6 +55,10 @@ app.addHook("preHandler", async (req, reply) => {
   if (req.method === "GET" || req.method === "HEAD") return;
   if (req.method === "POST" && READ_ONLY_POST.some((s) => req.routeOptions.url!.endsWith(s))) return;
   if (role === "VIEWER") return reply.code(403).send({ message: "Viewers have read-only access." });
+  // Accountants keep the books (entries, invoices, bills, imports, reconciliation, debt, inventory,
+  // contracts, notes) but don't change plans, integrations, alert settings, or users.
+  if (role === "ACCOUNTANT" && !ACCOUNTANT_WRITES.some((p) => req.routeOptions.url!.startsWith(`/farms/:farmId/${p}`)))
+    return reply.code(403).send({ message: "Accountants can edit the books but not plans, settings, or integrations." });
 });
 
 await registerHealth(app);
@@ -65,6 +73,9 @@ await registerObligations(app);
 await registerAlerts(app);
 await registerPlanning(app);
 await registerMarketing(app);
+await registerNotes(app);
+await registerBilling(app);
+await registerMembers(app);
 await registerReports(app);
 await registerInvoices(app);
 await registerAssistant(app);

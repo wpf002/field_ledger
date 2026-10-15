@@ -4,8 +4,9 @@ import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
   LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText, FileSpreadsheet, ReceiptText, Landmark, HeartPulse, Layers, Beef, Map as MapIcon, LineChart, Cog, GitBranch, Plug,
-  PieChart, TrendingUp, Calendar, MessageSquare, UserCircle2, LogOut, Check, ChevronsUpDown, Eye, Menu, X,
+  PieChart, TrendingUp, Calendar, MessageSquare, UserCircle2, LogOut, Check, ChevronsUpDown, Eye, Menu, X, ChevronDown, Lock,
 } from "lucide-react";
+import { hasFeature, type Feature } from "@fl/core";
 import { useEffect, useState } from "react";
 import { AlertsBell } from "@/components/alerts-bell";
 import { BrandMark } from "@/components/ui/brand-mark";
@@ -45,11 +46,22 @@ const NAV = [
 
 type Farm = { id: string; name: string };
 
-export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name: string; email: string }; role: string; farms: Farm[]; currentFarmId: string }) {
+// Pages behind a plan; shown with a lock when the farm's plan doesn't include them.
+const GATED: Record<string, Feature> = { "/budgets": "budgets", "/forecast": "forecast", "/scenarios": "scenarios", "/planning": "planning", "/insights": "insights" };
+
+export function SidebarNav({ user, role, farms, currentFarmId, plan = "business" }: { user: { name: string; email: string }; role: string; farms: Farm[]; currentFarmId: string; plan?: string }) {
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Collapsed nav groups, remembered per browser.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  useEffect(() => { try { setCollapsed(JSON.parse(localStorage.getItem("acreflow.nav.collapsed") ?? "{}")); } catch { /* private mode */ } }, []);
+  const toggle = (g: string) => setCollapsed((c) => {
+    const next = { ...c, [g]: !c[g] };
+    try { localStorage.setItem("acreflow.nav.collapsed", JSON.stringify(next)); } catch { /* private mode */ }
+    return next;
+  });
   const current = farms.find((f) => f.id === currentFarmId);
   const viewer = role === "VIEWER";
 
@@ -108,15 +120,24 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
       <nav className="flex-1 overflow-y-auto px-3 py-3">
         {NAV.map(({ group, items }, gi) => (
           <div key={gi} className={gi ? "mt-3" : ""}>
-            {group && <p className="px-4 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted/80">{group}</p>}
+            {group && (
+              <button onClick={() => toggle(group)} aria-expanded={!collapsed[group]}
+                className="flex w-full items-center justify-between rounded-btn px-4 pb-1 pt-0.5 text-[11px] font-medium uppercase tracking-wider text-muted/80 hover:text-ink">
+                {group}
+                <ChevronDown size={13} className={clsx("transition-transform", collapsed[group] && "-rotate-90")} />
+              </button>
+            )}
             <div className="space-y-0.5">
               {items.map(({ href, label, icon: Icon }) => {
                 const active = href === "/" ? path === "/" : path.startsWith(href);
+                // A collapsed group still shows the page you're on.
+                if (group && collapsed[group] && !active) return null;
                 return (
                   <Link key={href} href={href}
                     className={clsx("flex items-center gap-3 rounded-btn px-4 py-2 text-[15px] transition-colors", active ? "bg-primary text-white" : "text-muted hover:bg-tag/60")}>
                     <Icon size={19} strokeWidth={1.75} />
                     <span className={active ? "font-medium" : ""}>{label}</span>
+                    {GATED[href] && !hasFeature(plan, GATED[href]!) && <Lock size={13} className="ml-auto opacity-60" aria-label="Upgrade" />}
                   </Link>
                 );
               })}

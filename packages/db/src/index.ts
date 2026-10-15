@@ -23,3 +23,4 @@ export { applyExternalBatch, sealToken, openToken } from "./ingest.js";
 export { createApiToken, verifyApiToken } from "./api-tokens.js";
 export { registerClient, findClient, createCode, exchangeCode, refreshGrant, parseScope, validRedirect, OAuthError, ACCESS_TTL_S, type OAuthScope } from "./oauth.js";
 export * from "./marketing.js";
+export * from "./revenue-plan.js";

@@ -11,7 +11,7 @@ import { fmtDate } from "@/lib/format";
 import { Beef } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-type View = "herd" | "flow" | "repro" | "registry";
+type View = "herd" | "flow" | "repro" | "registry" | "sales";
 
 export default async function HerdPage({ searchParams }: { searchParams: { view?: string; year?: string; species?: string } }) {
   const farmId = await getDemoFarmId();
@@ -26,7 +26,8 @@ export default async function HerdPage({ searchParams }: { searchParams: { view?
   if (animals.length === 0 && flow.length === 0) {
     return (<><PageHeader title="Herd" /><EmptyState icon={<Beef size={22} />} title="No Animals Recorded" /></>);
   }
-  const view: View = (["flow", "repro", "registry"] as const).find((v) => v === searchParams.view) ?? "herd";
+  const view: View = (["flow", "repro", "registry", "sales"] as const).find((v) => v === searchParams.view) ?? "herd";
+  const sales = animals.filter((a) => a.buyer && a.salePriceCents).sort((a, b) => (b.dispositionDate?.getTime() ?? 0) - (a.dispositionDate?.getTime() ?? 0));
   const years = [...new Set(flow.map((f) => f.monthEnd.getUTCFullYear()))].sort((a, b) => b - a);
   const year = years.includes(Number(searchParams.year)) ? Number(searchParams.year) : years[0] ?? asOf.getUTCFullYear();
   const href = (v: string, extra = "") => `/herd?view=${v}&year=${year}${extra}`;
@@ -107,6 +108,30 @@ export default async function HerdPage({ searchParams }: { searchParams: { view?
         </tbody>
       </Table>
     );
+  } else if (view === "sales") {
+    // Breeding-stock sales by sire: what each sire's progeny brought.
+    const bySire = new Map<string, bigint[]>();
+    for (const a of sales) { const k = a.sireId?.replace(/^ANM-[A-Z]+-/, "") ?? "Unknown"; bySire.set(k, [...(bySire.get(k) ?? []), a.salePriceCents!]); }
+    const sires = [...bySire.entries()].map(([sire, ps]) => ({ sire, n: ps.length, avg: ps.reduce((x, y) => x + y, 0n) / BigInt(ps.length), top: ps.reduce((x, y) => (y > x ? y : x), 0n) })).sort((a, b) => Number(b.avg - a.avg));
+    body = (
+      <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
+        <Table minWidth={320}>
+          <thead><tr><Th>Sire</Th><Th right>Sold</Th><Th right>Average</Th><Th right>Top</Th></tr></thead>
+          <tbody>{sires.map((x) => <tr key={x.sire} className="border-t border-border"><Td strong>{x.sire}</Td><Td right muted>{x.n}</Td><Td right><Money cents={x.avg} /></Td><Td right muted><Money cents={x.top} /></Td></tr>)}</tbody>
+        </Table>
+        <Table minWidth={640}>
+          <thead><tr><Th>Animal</Th><Th>Sold</Th><Th>Buyer</Th><Th>Grade</Th><Th>Sire</Th><Th right>Price</Th></tr></thead>
+          <tbody>
+            {sales.map((a) => (
+              <tr key={a.id} className="border-t border-border">
+                <Td strong className="whitespace-nowrap">{a.nameOrTag ?? a.externalId?.replace(/^ANM-[A-Z]+-/, "")}</Td><Td muted className="whitespace-nowrap">{a.dispositionDate ? fmtDate(a.dispositionDate) : "–"}</Td>
+                <Td>{a.buyer}</Td><Td muted>{a.grade ?? "–"}</Td><Td muted>{a.sireId?.replace(/^ANM-[A-Z]+-/, "") ?? "–"}</Td><Td right><Money cents={a.salePriceCents!} /></Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </div>
+    );
   } else {
     const species = [...new Set(animals.map((a) => a.species))];
     const sp = species.includes(searchParams.species ?? "") ? searchParams.species! : species[0]!;
@@ -142,6 +167,7 @@ export default async function HerdPage({ searchParams }: { searchParams: { view?
           { value: "flow", label: "Herd Flow", href: href("flow") },
           ...(repro.length ? [{ value: "repro", label: "Reproduction", href: href("repro") }] : []),
           { value: "registry", label: "Registry", href: href("registry") },
+          ...(sales.length ? [{ value: "sales", label: "Breeding Sales", href: href("sales") }] : []),
         ]} />
       </div>
       {body}

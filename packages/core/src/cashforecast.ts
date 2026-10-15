@@ -43,7 +43,31 @@ export type ForecastInputs = {
   drivers: Drivers;
   /** What-if events: extra cash items, and monthly P&L costs (positive cents = cost). */
   extra?: { items?: CashItem[]; monthlyCostCents?: bigint; monthlyRevenueCents?: bigint };
+  /** Priced marketing contracts still to deliver: known receipts (spec §6 "known contracts"). */
+  contracts?: ContractFlow[];
 };
+export type ContractFlow = { date: Date; cents: bigint; enterpriseId: string | null; description: string };
+
+/**
+ * Contract deliveries in (asOf, end] as known receipts. The operating plan replays last
+ * year's sales, so each delivery offsets that enterprise's replayed receipts from its
+ * date on, and the year's total for the crop isn't counted twice.
+ */
+export function withContracts(plan: CashItem[], contracts: ContractFlow[] | undefined, asOf: Date, end: Date): CashItem[] {
+  const due = (contracts ?? []).filter((c) => c.cents > 0n && t(c.date) > t(asOf) && t(c.date) <= t(end));
+  if (!due.length) return plan;
+  const out = plan.map((i) => ({ ...i }));
+  for (const c of due) {
+    let left = c.cents;
+    for (const i of out.filter((x) => x.cents > 0n && x.group !== "Contracted sales" && c.enterpriseId && x.enterpriseId === c.enterpriseId && t(x.date) >= t(c.date) - 31 * 86_400_000).sort((a, b) => t(a.date) - t(b.date))) {
+      if (left <= 0n) break;
+      const take = i.cents < left ? i.cents : left;
+      i.cents -= take; left -= take;
+    }
+    out.push({ date: c.date, group: "Contracted sales", source: "open item", description: c.description, cents: c.cents, enterpriseId: c.enterpriseId });
+  }
+  return out.filter((i) => i.cents !== 0n);
+}
 
 const revFactor = (d: Drivers, ent: string | null | undefined) => {
   const e = ent ? d.byEnterprise?.[ent] : undefined;
@@ -151,7 +175,7 @@ export type ThirteenWeek = { weeks: CashPeriod[]; items: CashItem[]; minimum: { 
 
 export function thirteenWeekForecast(inp: ForecastInputs & { rows: (StatementRow & { expectedCashDate?: Date | null; description?: string })[]; loans: (LoanRec & { name?: string })[] }): ThirteenWeek {
   const end = addDays(inp.asOf, 91);
-  const items = [...openItemFlows(inp.rows, inp.asOf, end), ...scheduledDebtFlows(inp.loans, inp.asOf, end), ...operatingPlanFlows(inp.rows, inp.asOf, end, inp.drivers)];
+  const items = [...openItemFlows(inp.rows, inp.asOf, end), ...scheduledDebtFlows(inp.loans, inp.asOf, end), ...withContracts(operatingPlanFlows(inp.rows, inp.asOf, end, inp.drivers), inp.contracts, inp.asOf, end)];
   const periods = Array.from({ length: 13 }, (_, i) => ({ start: addDays(inp.asOf, i * 7), end: addDays(inp.asOf, (i + 1) * 7) }));
   const rate = inp.line?.ratePct ?? 0;
   const weeks = rollCash(items, periods, inp.cashCents, inp.line, inp.reserveCents, (b) => scale(b, rate / 100 / 52));
@@ -198,7 +222,7 @@ export function profitForecast(rows: StatementRow[], assets: AssetRec[], loans: 
 
 export function twelveMonthForecast(inp: ForecastInputs & { rows: (StatementRow & { expectedCashDate?: Date | null; description?: string })[]; loans: (LoanRec & { name?: string })[] }): MonthForecast[] {
   const end = monthEnd(inp.asOf.getUTCFullYear(), inp.asOf.getUTCMonth() + 12);
-  const items = [...openItemFlows(inp.rows, inp.asOf, end), ...scheduledDebtFlows(inp.loans, inp.asOf, end), ...operatingPlanFlows(inp.rows, inp.asOf, end, inp.drivers), ...(inp.extra?.items ?? [])];
+  const items = [...openItemFlows(inp.rows, inp.asOf, end), ...scheduledDebtFlows(inp.loans, inp.asOf, end), ...withContracts(operatingPlanFlows(inp.rows, inp.asOf, end, inp.drivers), inp.contracts, inp.asOf, end), ...(inp.extra?.items ?? [])];
   const periods = Array.from({ length: 12 }, (_, i) => ({ start: monthEnd(inp.asOf.getUTCFullYear(), inp.asOf.getUTCMonth() + i), end: monthEnd(inp.asOf.getUTCFullYear(), inp.asOf.getUTCMonth() + i + 1) }));
   const rate = inp.line?.ratePct ?? 0;
   const cash = rollCash(items, periods, inp.cashCents, inp.line, inp.reserveCents, (b) => scale(b, rate / 100 / 12));

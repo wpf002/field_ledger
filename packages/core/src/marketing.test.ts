@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commodityExposure, commodityOf, isPriced, type ContractRec } from "./marketing.js";
+import { commodityExposure, commodityOf, isPriced, remainingToSell, type ContractRec } from "./marketing.js";
 
 const contract = (o: Partial<ContractRec>): ContractRec => ({ commodity: "Soybeans", cropYear: 2026, type: "forward", quantity: 4000, unit: "bu", price: 10.45, basis: null, delivered: 0, status: "open", deliveryStart: new Date("2026-11-01"), deliveryEnd: new Date("2026-11-30"), ...o });
 
@@ -38,5 +38,19 @@ describe("commodity exposure", () => {
   it("normalizes crop names", () => {
     expect(commodityOf("Cotton (dryland)")).toBe("Cotton");
     expect(commodityOf("corn")).toBe("Corn");
+    expect(commodityOf("Sweet corn")).toBe("Sweet corn");
+  });
+});
+
+describe("remaining to sell", () => {
+  const base = { crop: "Okra", year: 2026, acres: 1, expectedYield: null, totalProduction: 1000, qtySold: 600, yieldUnit: "lb/ac" };
+  it("after harvest only storage counts", () => {
+    expect(remainingToSell({ ...base, harvestEnd: new Date("2026-08-01"), stored: 50 }, new Date("2026-09-30"))).toBe(50);
+  });
+  it("mid-harvest counts the share still ahead", () => {
+    expect(remainingToSell({ ...base, harvestStart: new Date("2026-07-01"), harvestEnd: new Date("2026-10-30"), stored: 0 }, new Date("2026-09-30"))).toBeCloseTo(1000 * 30 / 121, 0);
+  });
+  it("before harvest everything unsold counts", () => {
+    expect(remainingToSell({ ...base, qtySold: 0, harvestStart: new Date("2026-10-01"), harvestEnd: new Date("2026-11-15") }, new Date("2026-09-30"))).toBe(1000);
   });
 });

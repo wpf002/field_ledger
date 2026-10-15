@@ -6,11 +6,11 @@
  */
 import { prisma, pnlWhere } from "@fl/db";
 import {
-  forecastContext, generateInsights, generateBrief, loadEnterpriseInputs, runWhatIf, SCENARIO_KEYS, loadCommodityExposure,
+  forecastContext, generateInsights, generateBrief, loadEnterpriseInputs, runWhatIf, SCENARIO_KEYS, loadCommodityExposure, storedCommodities,
 } from "@fl/db";
 import {
   balanceSheetAt, incomeStatement, enterpriseStatements, cropEconomics, headEconomics, financialRatios, ratioInputsFor,
-  periodFor, healthScore, agingSummary, AGING_BUCKETS, type ScenarioKey,
+  periodFor, healthScore, agingSummary, AGING_BUCKETS, sellOrHold, type ScenarioKey,
 } from "@fl/core";
 
 import {
@@ -246,13 +246,14 @@ export async function runScenario(farmId: string, input?: Record<string, unknown
  * analyze = forecasts and scenarios. Viewers get read only. Write and high-risk
  * actions (payments, transfers, account changes) are not exposed to the model.
  */
-export type ToolTier = "read" | "analyze";
+export type ToolTier = "read" | "analyze" | "write";
 export const TOOL_TIER: Record<string, ToolTier> = {
   financial_summary: "read", recent_transactions: "read", upcoming_obligations: "read", marketable_inventory: "read", budget_status: "read",
   schedule_f: "read", alerts: "read", cash_position: "read", enterprise_profitability: "read", crop_profitability: "read",
   livestock_profitability: "read", debt_summary: "read", inventory_position: "read", accounts_receivable: "read", financial_health: "read",
   insights: "analyze", financial_brief: "analyze", cash_forecast: "analyze", run_scenario: "analyze",
-  commodity_exposure: "read", market_research: "analyze",
+  commodity_exposure: "read", market_research: "analyze", sell_or_hold: "analyze",
+  set_budget: "write", save_scenario: "write", add_note: "write",
 };
 Object.assign(LEDGER_TOOLS, {
   cash_position: (f: string) => cashPosition(f),
@@ -302,3 +303,59 @@ async function marketResearch(_farmId: string, input?: Record<string, unknown>) 
   return { answer: j.choices?.[0]?.message?.content ?? "", sources: j.citations ?? j.search_results?.map((s) => s.url) ?? [] };
 }
 Object.assign(LEDGER_TOOLS, { commodity_exposure: commodityExposureTool, market_research: marketResearch });
+
+/** Sell stored grain now or hold it: defaults from the latest inventory and the operating line rate. */
+async function sellOrHoldTool(farmId: string, input?: Record<string, unknown>) {
+  const lots = await storedCommodities(prisma, farmId);
+  const want = String(input?.item ?? "").toLowerCase();
+  const lot = lots.find((l) => want && l.item.toLowerCase().includes(want)) ?? lots[0];
+  if (!lot) return { error: "No stored crop or feed in inventory." };
+  const num = (k: string, d: number) => (input?.[k] != null && Number.isFinite(Number(input[k])) ? Number(input[k]) : d);
+  const o = { quantity: num("quantity", lot.quantity), priceNow: num("priceNow", lot.priceNow), priceLater: num("priceLater", lot.priceNow), months: num("months", 4), storagePerUnitMonth: num("storagePerUnitMonth", 0.03), interestPct: num("interestPct", lot.interestPct), shrinkPct: num("shrinkPct", 1) / 100 };
+  const r = sellOrHold(o);
+  return { item: lot.item, unit: lot.unit, assumptions: o, sellNowCents: c(r.sellNowCents), holdCents: c(r.holdCents), holdGainCents: c(r.holdGainCents), storageCents: c(r.storageCents), interestCents: c(r.interestCents), breakEvenPrice: r.breakEvenPrice, better: r.better, otherLots: lots.map((l) => l.item) };
+}
+Object.assign(LEDGER_TOOLS, { sell_or_hold: sellOrHoldTool });
+
+// ---------- write tier (spec "Security model for AI"): budgets, scenarios, notes ----------
+// Owners, admins, and members only; every write is audited as coming from the assistant.
+// Payments, transfers, and account changes are never exposed.
+const dollars = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? BigInt(Math.round(n * 100)) : null; };
+
+async function setBudget(farmId: string, input?: Record<string, unknown>) {
+  const q = String(input?.category ?? "").trim().toLowerCase();
+  const amount = dollars(input?.amount);
+  const year = Number(input?.year ?? new Date().getUTCFullYear());
+  const month = input?.month != null ? Number(input.month) : null;
+  if (!q || amount == null || amount < 0n) return { error: "category and a non-negative amount are required" };
+  const accounts = await prisma.account.findMany({ where: { farmId, section: { in: ["REV", "COP", "OVH"] } } });
+  const acct = accounts.find((a) => a.code === q) ?? accounts.find((a) => a.label.toLowerCase() === q) ?? accounts.find((a) => a.label.toLowerCase().includes(q) || (a.statementLine ?? "").toLowerCase().includes(q));
+  if (!acct) return { error: `No category matches "${input?.category}"`, categories: accounts.map((a) => a.label).slice(0, 40) };
+  const period = month ? "MONTHLY" as const : "ANNUAL" as const;
+  const before = await prisma.budget.findFirst({ where: { farmId, period, year, month, accountCode: acct.code } });
+  const b = before
+    ? await prisma.budget.update({ where: { id: before.id }, data: { amountCents: amount } })
+    : await prisma.budget.create({ data: { farmId, period, year, month, accountCode: acct.code, amountCents: amount } });
+  await prisma.auditLog.create({ data: { farmId, action: before ? "update" : "create", entity: "Budget", entityId: b.id, before: before ? { amountCents: before.amountCents.toString() } : undefined, after: { amountCents: amount.toString(), category: acct.label, source: "assistant" } } });
+  return { saved: true, category: acct.label, year, month, amountCents: c(amount) };
+}
+
+async function saveScenario(farmId: string, input?: Record<string, unknown>) {
+  const question = String(input?.question ?? "").trim().slice(0, 200);
+  if (!question) return { error: "question is required" };
+  const result = (await runScenario(farmId, input)) as { before: { profitCents: string }; after: { profitCents: string } };
+  const impact = Number(BigInt(result.after.profitCents) - BigInt(result.before.profitCents)) / 100;
+  const change = ["pricePct", "volumePct", "costPct", "equipmentPrice", "hireAnnualWage"].filter((k) => input?.[k] != null).map((k) => `${k} ${input![k]}`).join(", ");
+  const lever = await prisma.scenarioLever.create({ data: { farmId, question, driver: "12-month net income", scenarioChange: change || null, template: "manual", params: { impact, basis: `Assistant what-if: ${change || "no changes"}` } } });
+  await prisma.auditLog.create({ data: { farmId, action: "create", entity: "ScenarioLever", entityId: lever.id, after: { question, impact, source: "assistant" } } });
+  return { saved: true, id: lever.id, question, annualImpact: impact };
+}
+
+async function addNote(farmId: string, input?: Record<string, unknown>) {
+  const body = String(input?.body ?? "").trim().slice(0, 2000);
+  if (!body) return { error: "body is required" };
+  const note = await prisma.note.create({ data: { farmId, body, entity: input?.entity ? String(input.entity) : null, entityId: input?.entityId ? String(input.entityId) : null, source: "assistant" } });
+  await prisma.auditLog.create({ data: { farmId, action: "create", entity: "Note", entityId: note.id, after: { source: "assistant" } } });
+  return { saved: true, id: note.id };
+}
+Object.assign(LEDGER_TOOLS, { set_budget: setBudget, save_scenario: saveScenario, add_note: addNote });

@@ -1,8 +1,10 @@
+import { Upgrade } from "@/components/ui/upgrade";
+import { hasFeature } from "@fl/core";
 import clsx from "clsx";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { LinkTabs } from "@/components/ui/link-tabs";
-import { getDemoFarmId } from "@/lib/data";
+import { getDemoFarmId, getPlan } from "@/lib/data";
 import { getInsights, getBrief } from "@/lib/insights";
 import { fmtDate } from "@/lib/format";
 import type { Severity } from "@fl/db";
@@ -18,6 +20,7 @@ const SEVERITIES: Severity[] = ["Critical", "Warning", "Watch", "Opportunity", "
 
 export default async function InsightsPage({ searchParams }: { searchParams: { brief?: string; sev?: string } }) {
   const farmId = await getDemoFarmId();
+  if (!hasFeature(await getPlan(), "insights")) return (<><PageHeader title="Insights" /><Upgrade feature="insights" title="Insights" /></>);
   const kind = searchParams.brief === "monthly" ? "monthly" : "weekly";
   const [brief, insights] = await Promise.all([getBrief(farmId, kind), getInsights(farmId)]);
   const sev = SEVERITIES.find((x) => x === searchParams.sev);

@@ -11,7 +11,7 @@ export function middleware(req: NextRequest) {
   // on mere cookie presence: the edge runtime can't verify the token, and a
   // stale-but-present cookie would loop with the data layer's redirect back to
   // /login (which then re-issues a valid cookie on the next sign-in).
-  if (!hasToken && pathname !== "/login") {
+  if (!hasToken && pathname !== "/login" && !pathname.startsWith("/invite/")) {
     // Come back here after signing in (e.g. the OAuth consent screen).
     const to = new URL("/login", req.url);
     if (pathname !== "/") to.searchParams.set("next", pathname + req.nextUrl.search);

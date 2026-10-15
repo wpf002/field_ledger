@@ -93,3 +93,19 @@ Add `https://<origin>/api/mcp` as the connector URL; the client discovers the re
 
 Access tokens last 1 hour, refresh tokens 30 days. A refresh fails once the user
 loses membership in the farm.
+
+## Billing (Stripe)
+
+Plans: Essentials, Pro, Business (`packages/core/src/plans.ts`). Charging turns on
+when all of these are set on the API service; until then an owner switches plans
+directly with no charge.
+
+| Variable | Value |
+|---|---|
+| `STRIPE_SECRET_KEY` | Secret key (shared with Stripe Connect) |
+| `STRIPE_PRICE_ESSENTIALS`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_BUSINESS` | Recurring price IDs |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret for `<PUBLIC_WEB_URL>/api/billing/webhook` |
+
+Webhook events: `checkout.session.completed`, `customer.subscription.updated`,
+`customer.subscription.deleted`. Plan changes after the first subscription go
+through the Stripe Customer Portal.

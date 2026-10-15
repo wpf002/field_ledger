@@ -4,11 +4,11 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import clsx from "clsx";
-import { Sparkles, PencilLine, Camera, Send, Upload, CheckCircle2 } from "lucide-react";
+import { Sparkles, PencilLine, Camera, Send, Upload, CheckCircle2, StickyNote, Trash2 } from "lucide-react";
 import { enqueue } from "@/lib/outbox";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
-type Tab = "chat" | "quicklog" | "receipt";
+type Tab = "chat" | "quicklog" | "receipt" | "notes";
 type Account = { code: string; label: string; kind: "INCOME" | "EXPENSE" };
 type Draft = { date: string; description: string; amountCents: string; kind: "INCOME" | "EXPENSE"; accountCode: string; accountLabel: string };
 type ChatMsg = { role: "user" | "assistant"; text: string };
@@ -24,6 +24,7 @@ const TABS: { value: Tab; label: string; icon: typeof Sparkles }[] = [
   { value: "chat", label: "Chat", icon: Sparkles },
   { value: "quicklog", label: "Quick Log", icon: PencilLine },
   { value: "receipt", label: "Receipt Capture", icon: Camera },
+  { value: "notes", label: "Notes", icon: StickyNote },
 ];
 
 export function AssistantView({ farmId }: { farmId: string }) {
@@ -180,6 +181,7 @@ export function AssistantView({ farmId }: { farmId: string }) {
           {draft && <DraftCard draft={draft} accounts={accounts} onChange={updateDraft} onConfirm={confirmPost} onCancel={() => setDraft(null)} busy={busy} />}
         </Card>
       )}
+      {tab === "notes" && <NotesPanel farmId={farmId} />}
     </>
   );
 }
@@ -208,5 +210,43 @@ function DraftCard({ draft, accounts, onChange, onConfirm, onCancel, busy }: { d
         </div>
       </div>
     </div>
+  );
+}
+
+type NoteVM = { id: string; body: string; source: string; createdAt: string };
+
+/** Farm notes: decisions and follow-ups, including ones the assistant saved on request. */
+function NotesPanel({ farmId }: { farmId: string }) {
+  const [notes, setNotes] = useState<NoteVM[] | null>(null);
+  const [body, setBody] = useState("");
+  const load = () => fetch(`${API}/farms/${farmId}/notes`).then((r) => (r.ok ? r.json() : [])).then(setNotes).catch(() => setNotes([]));
+  useEffect(() => { load(); }, [farmId]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!body.trim()) return;
+    const r = await fetch(`${API}/farms/${farmId}/notes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ body }) });
+    if (r.ok) { setBody(""); load(); }
+  }
+  async function remove(id: string) {
+    if (!confirm("Delete this note?")) return;
+    const r = await fetch(`${API}/farms/${farmId}/notes/${id}`, { method: "DELETE" });
+    if (r.ok) load();
+  }
+  return (
+    <Card className="p-6">
+      <form onSubmit={add} className="flex gap-2">
+        <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Add a note" className="input flex-1" />
+        <button className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-deep">Save</button>
+      </form>
+      <ul className="mt-4 divide-y divide-border text-sm">
+        {(notes ?? []).map((n) => (
+          <li key={n.id} className="flex items-start justify-between gap-4 py-3">
+            <div><p className="whitespace-pre-wrap text-ink">{n.body}</p><p className="mt-0.5 text-xs text-muted">{new Date(n.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}{n.source === "assistant" ? " · Assistant" : ""}</p></div>
+            <button onClick={() => remove(n.id)} className="text-muted hover:text-negative" title="Delete"><Trash2 size={15} /></button>
+          </li>
+        ))}
+        {notes && notes.length === 0 && <li className="py-6 text-center text-muted">No Notes</li>}
+      </ul>
+    </Card>
   );
 }

@@ -219,10 +219,24 @@ scopes; tested with tools/list and tools/call. OAuth 2.1 in front of `/mcp`
 connect without a pasted token; tested end to end locally. John Deere and Trimble
 require partner approval and are listed, not built.
 
+## Requirement gaps closed after Phase 19
+
+A line-by-line pass over the requirements doc found items the roadmap had marked
+done at the section level. Built: forecast comparison on the income statement
+(§3); contract deliveries as known receipts in the 13-week and 12-month cash
+forecasts (§6); driver-based revenue forecast with livestock drivers and the crop
+plan (§8); yield, price, and feed-cost accuracy (§14); downtime and efficiency in
+repair vs. replace (§19); sell or hold (§27); the brief's pricing action from
+commodity exposure (§29); assistant write tools for budgets, scenarios, and notes
+(AI security model); field tagging on entries (data model); bull sales import;
+subscription tiers with Stripe Billing; and the Business features: consolidated
+reporting, custom dashboards, an Accountant role, users and invites, and a lender
+package. Not buildable without partner approval: John Deere, Trimble, genetics,
+and livestock-monitoring integrations.
+
 ## Not in this roadmap
 
-- Subscription tiers / paywalls (spec "Subscription Model"): deferred until the
-  app is ready to monetize.
+- Nothing deferred from the spec; partner-gated integrations are listed above.
 
 ## Spec coverage
 

@@ -35,6 +35,11 @@ model Farm {
   profile               Json? // free-form business profile (goals, challenges, labor)
   reportCutoff          DateTime? // last closed month-end for actuals (test farms: 2026-09-30)
   ownerLaborChargeCents BigInt? // annual owner labor & management charge used by return ratios
+  plan                  String                @default("pro") // essentials | pro | business
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  subscriptionStatus    String? // active | trialing | past_due | canceled (from Stripe)
+  entityGroup           String? // farms sharing a group consolidate in reporting (multiple entities)
   enterprises           Enterprise[]
   vendors               Vendor[]
   bills                 Bill[]
@@ -83,12 +88,15 @@ model Farm {
   ApiToken              ApiToken[]
   MarketingContract     MarketingContract[]
   Benchmark             Benchmark[]
+  Note                  Note[]
+  Invite                Invite[]
 }
 
 enum Role {
   OWNER
   ADMIN
   MEMBER
+  ACCOUNTANT // reads everything, edits transactions and periods; no settings, users, or integrations
   VIEWER
 }
 
@@ -99,6 +107,7 @@ model Membership {
   farm   Farm   @relation(fields: [farmId], references: [id])
   farmId String
   role   Role   @default(OWNER)
+  dashboardTiles Json? // custom dashboard: ordered tile keys this user chose for this farm
 
   @@unique([userId, farmId])
 }
@@ -136,6 +145,8 @@ model Transaction {
   cashDate           DateTime? // when cash moved; null = unpaid (AR/AP) or non-cash adjustment
   expectedCashDate   DateTime?
   dueDate            DateTime?
+  landParcel         LandParcel?    @relation(fields: [landParcelId], references: [id])
+  landParcelId       String? // field the cost or revenue belongs to (Farm -> Field -> Enterprise -> Season)
   cashEffectCents    BigInt? // signed cash impact (+ inflow); null for non-cash adjustments
   entryType          String         @default("ledger") // ledger | adjustment (month-end non-cash: DEP, INVCHG, LVCHG, XFER, GAIN)
   description        String
@@ -634,6 +645,7 @@ model LandParcel {
   tenure       String? // owned | leased-out | leased-in
   enterprise   Enterprise? @relation(fields: [enterpriseId], references: [id])
   enterpriseId String?
+  transactions Transaction[]
 }
 
 model CropSeason {
@@ -717,6 +729,7 @@ model Animal {
   weaningWeightLb   Decimal?      @db.Decimal(10, 2)
   saleWeightLb      Decimal?      @db.Decimal(10, 2)
   salePriceCents    BigInt?
+  buyer             String? // bull and breeding-stock sales
   grade             String?
   aiSired           Boolean?
   transactions      Transaction[]
@@ -946,6 +959,7 @@ model ForecastSetting {
   farmId       String @unique
   reserveCents BigInt @default(2500000)
   scenarios    Json? // { base: Drivers, optimistic: Drivers, downside: Drivers }
+  revenueDrivers Json? // livestock and crop revenue drivers (spec §8): { livestock: [...], crops: {...} }
 }
 
 /// A saved forecast, kept so forecast-vs-actual can grade it as months close.
@@ -1088,4 +1102,33 @@ model Benchmark {
   median   Float?
 
   @@unique([farmId, source, year, region, metric])
+}
+
+/// Notes the owner (or the assistant, on request) keeps against the farm or a record.
+model Note {
+  id        String   @id @default(uuid())
+  farm      Farm     @relation(fields: [farmId], references: [id])
+  farmId    String
+  entity    String? // Enterprise | CropSeason | Asset | Loan | ...
+  entityId  String?
+  body      String
+  authorId  String?
+  source    String   @default("manual") // manual | assistant
+  createdAt DateTime @default(now())
+
+  @@index([farmId, createdAt])
+}
+
+/// Invitation to join a farm with a role; the link sets the invitee's name and password.
+model Invite {
+  id         String    @id @default(uuid())
+  farm       Farm      @relation(fields: [farmId], references: [id])
+  farmId     String
+  email      String
+  role       Role
+  tokenHash  String    @unique
+  invitedBy  String?
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
 }

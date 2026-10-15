@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { balanceSheetAt, thirteenWeekForecast, twelveMonthForecast, DEFAULT_SCENARIOS, type Drivers, type ScenarioKey } from "@fl/core";
 import { loadStatementInputs } from "./statement-inputs.js";
+import { contractFlowsFor } from "./marketing.js";
 
 export const SCENARIO_KEYS: ScenarioKey[] = ["base", "optimistic", "downside"];
 
@@ -9,18 +10,19 @@ export async function forecastContext(prisma: PrismaClient, farmId: string, prel
   const inputs = preloaded ?? (await loadStatementInputs(prisma, farmId));
   const now = new Date();
   const asOf = preloaded?.asOf ?? inputs.cutoff ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
-  const [setting, line] = await Promise.all([
+  const [setting, line, contracts] = await Promise.all([
     prisma.forecastSetting.findUnique({ where: { farmId } }),
     prisma.liability.findFirst({ where: { farmId, type: "OPERATING_LINE" } }),
+    contractFlowsFor(prisma, farmId),
   ]);
   const saved = (setting?.scenarios ?? {}) as Partial<Record<ScenarioKey, Drivers>>;
   const drivers = Object.fromEntries(SCENARIO_KEYS.map((k) => [k, saved[k] ?? DEFAULT_SCENARIOS[k].drivers])) as Record<ScenarioKey, Drivers>;
   const bs = balanceSheetAt(inputs, asOf);
   const lineTerms = line ? { limitCents: line.limitCents ?? line.originalCents, ratePct: Number(line.ratePct), balanceCents: bs.operatingLineCents } : null;
   const reserveCents = setting?.reserveCents ?? defaultReserve(inputs.rows, asOf);
-  const base = { rows: inputs.rows, asOf, cashCents: bs.cashCents, loans: inputs.loans, assets: inputs.assets, line: lineTerms, reserveCents };
+  const base = { rows: inputs.rows, contracts, asOf, cashCents: bs.cashCents, loans: inputs.loans, assets: inputs.assets, line: lineTerms, reserveCents };
   return {
-    asOf, reserveCents, drivers, lineTerms, inputs,
+    asOf, reserveCents, drivers, lineTerms, inputs, contracts, setting,
     thirteen: (k: ScenarioKey) => thirteenWeekForecast({ ...base, drivers: drivers[k] }),
     twelve: (k: ScenarioKey) => twelveMonthForecast({ ...base, drivers: drivers[k] }),
   };

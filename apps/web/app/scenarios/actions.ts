@@ -1,14 +1,14 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@fl/db";
-import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
+import { getDemoFarmId, getCurrentRole, canManage } from "@/lib/data";
 
 const n = (v: FormDataEntryValue | null) => Number(v ?? 0) || 0;
 
 /** Add a question to the farm's scenario list from a template. */
 export async function addLever(form: FormData) {
   const farmId = await getDemoFarmId();
-  if (!canWrite(await getCurrentRole())) return;
+  if (!canManage(await getCurrentRole())) return;
   const template = String(form.get("template"));
   const year = n(form.get("year"));
   let params: Record<string, unknown>, question: string, driver: string, change: string;
@@ -42,7 +42,7 @@ export async function addLever(form: FormData) {
 
 export async function removeLever(form: FormData) {
   const farmId = await getDemoFarmId();
-  if (!canWrite(await getCurrentRole())) return;
+  if (!canManage(await getCurrentRole())) return;
   const id = String(form.get("id"));
   const lever = await prisma.scenarioLever.findFirst({ where: { id, farmId } });
   if (!lever) return;

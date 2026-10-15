@@ -4,7 +4,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { IntegrationActions } from "@/components/integration-actions";
 import { prisma } from "@fl/db";
-import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
+import { getDemoFarmId, getCurrentRole, canManage, getPlan } from "@/lib/data";
+import { canUseIntegration, integrationPlan, PLAN_NAME } from "@fl/core";
 import { fmtDate } from "@/lib/format";
 import { apiFetch } from "@/lib/api";
 
@@ -15,7 +16,8 @@ const ORDER = ["Accounting", "Banking", "Payments", "Farm Software", "Livestock"
 
 export default async function IntegrationsPage({ searchParams }: { searchParams: { connected?: string; error?: string } }) {
   const farmId = await getDemoFarmId();
-  const editable = canWrite(await getCurrentRole());
+  const editable = canManage(await getCurrentRole());
+  const plan = await getPlan();
   const [providers, connections] = await Promise.all([
     apiFetch("/integrations/providers").then((r) => r.json() as Promise<Provider[]>).catch(() => [] as Provider[]),
     prisma.connection.findMany({ where: { farmId }, include: { syncRuns: { orderBy: { startedAt: "desc" }, take: 1 } } }),
@@ -40,7 +42,8 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
                 const conns = connections.filter((c) => c.provider === p.key);
                 const ready = p.configured && ["oauth2", "plaid_link", "connect_url", "credentials", "server_key"].includes(p.auth);
                 // Perplexity has nothing to connect per farm: the assistant uses it once the key is set.
-                const status = p.key === "perplexity" ? (p.configured ? "On" : "Needs Credentials") : conns.length ? (conns.some((c) => c.status === "error") ? "Error" : "Connected")
+                const locked = !conns.length && !canUseIntegration(plan, p.key) && !["partner", "file"].includes(p.auth);
+                const status = locked ? `${PLAN_NAME[integrationPlan(p.key)]} Plan` : p.key === "perplexity" ? (p.configured ? "On" : "Needs Credentials") : conns.length ? (conns.some((c) => c.status === "error") ? "Error" : "Connected")
                   : p.auth === "partner" ? "Partner Access" : p.auth === "file" ? "File Import" : (p.auth === "public" || p.auth === "webhook" || ready) ? "Available" : "Needs Credentials";
                 const tip = status === "Needs Credentials" ? `Set ${p.env.join(" and ")} on the server` : undefined;
                 return (
@@ -54,6 +57,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
                       <div className="min-w-0 md:flex md:justify-end">
                         {!conns.length && status === "File Import" && <Link href={p.docs} className="text-sm text-primary underline">Import CSV</Link>}
                         {!conns.length && status === "Partner Access" && <a href={p.docs} target="_blank" rel="noreferrer" className="text-sm text-muted underline">Partner Program</a>}
+                        {locked && <Link href="/account#plan" className="text-sm text-primary underline">See Plans</Link>}
                         {!conns.length && status === "Available" && <IntegrationActions farmId={farmId} provider={p.key} auth={p.auth} fields={p.fields} canConnect={editable} />}
                       </div>
                     </div>

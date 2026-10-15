@@ -5,6 +5,8 @@ import { prisma, applyExternalBatch, sealToken, openToken } from "@fl/db";
 import { emptyBatch, type ExternalBatch } from "@fl/core";
 import { PROVIDERS, providerByKey, configured, plaid, type Tokens } from "../integrations/providers.js";
 import { verifyToken, tokenFromRequest, roleForFarm } from "../lib/session.js";
+import { planFor } from "../lib/plan.js";
+import { canUseIntegration, integrationPlan, PLAN_NAME } from "@fl/core";
 
 const secret = () => process.env.AUTH_SECRET || "insecure-dev-secret";
 const webUrl = () => (process.env.PUBLIC_WEB_URL || process.env.WEB_ORIGIN || "http://localhost:3000").replace(/\/$/, "");
@@ -29,8 +31,15 @@ async function writer(req: FastifyRequest, reply: FastifyReply, farmId: string) 
   const v = verifyToken(tokenFromRequest(req));
   if (!v) { reply.code(401).send({ message: "Sign in required." }); return null; }
   const role = await roleForFarm(v.userId, farmId);
-  if (!role || role === "VIEWER") { reply.code(403).send({ message: "Only owners and members can manage integrations." }); return null; }
+  if (!role || role === "VIEWER" || role === "ACCOUNTANT") { reply.code(403).send({ message: "Only owners and members can manage integrations." }); return null; }
   return v.userId;
+}
+
+/** Connectors beyond the farm's plan answer with the plan they need. */
+async function planAllows(reply: FastifyReply, farmId: string, provider: string) {
+  if (canUseIntegration(await planFor(farmId), provider)) return true;
+  reply.code(403).send({ message: `${provider} is on the ${PLAN_NAME[integrationPlan(provider)]} plan.` });
+  return false;
 }
 
 async function saveConnection(farmId: string, provider: string, t: Tokens, cursor?: object) {
@@ -96,6 +105,7 @@ export async function registerIntegrations(app: FastifyInstance) {
   app.post("/farms/:farmId/integrations/:provider/credentials", async (req, reply) => {
     const { farmId, provider } = req.params as { farmId: string; provider: string };
     if (!(await writer(req, reply, farmId))) return;
+    if (!(await planAllows(reply, farmId, provider))) return;
     const p = providerByKey(provider);
     if (!p?.fields || p.auth !== "credentials") return reply.badRequest("This provider doesn't take credentials.");
     if (!configured(p)) return reply.badRequest(`Set ${p.env.join(", ")} on the server first.`);
@@ -115,6 +125,7 @@ export async function registerIntegrations(app: FastifyInstance) {
   app.post("/farms/:farmId/integrations/:provider/connect-url", async (req, reply) => {
     const { farmId, provider } = req.params as { farmId: string; provider: string };
     if (!(await writer(req, reply, farmId))) return;
+    if (!(await planAllows(reply, farmId, provider))) return;
     const p = providerByKey(provider);
     if (!p?.connectUrl) return reply.badRequest("This provider doesn't use a connect page.");
     if (!configured(p)) return reply.badRequest(`Set ${p.env.join(", ")} on the server first.`);
@@ -128,6 +139,7 @@ export async function registerIntegrations(app: FastifyInstance) {
   app.post("/farms/:farmId/integrations/:provider/enable", async (req, reply) => {
     const { farmId, provider } = req.params as { farmId: string; provider: string };
     if (!(await writer(req, reply, farmId))) return;
+    if (!(await planAllows(reply, farmId, provider))) return;
     const p = providerByKey(provider);
     if (p?.auth !== "server_key" || !p.sync) return reply.badRequest("This provider isn't enabled per farm.");
     if (!configured(p)) return reply.badRequest(`Set ${p.env.join(", ")} on the server first.`);
@@ -146,6 +158,7 @@ export async function registerIntegrations(app: FastifyInstance) {
   app.get("/farms/:farmId/integrations/:provider/connect", async (req, reply) => {
     const { farmId, provider } = req.params as { farmId: string; provider: string };
     const userId = await writer(req, reply, farmId); if (!userId) return;
+    if (!(await planAllows(reply, farmId, provider))) return;
     const p = providerByKey(provider);
     if (!p?.authorizeUrl) return reply.badRequest("This provider doesn't connect by OAuth.");
     if (!configured(p)) return reply.badRequest(`Set ${p.env.join(", ")} to enable ${p.name}.`);
@@ -161,7 +174,7 @@ export async function registerIntegrations(app: FastifyInstance) {
     if (!st || st.provider !== provider || !p?.exchange) return reply.redirect(`${webUrl()}/integrations?error=state`);
     if (q.error || !q.code) return reply.redirect(`${webUrl()}/integrations?error=${encodeURIComponent(q.error ?? "denied")}`);
     const role = await roleForFarm(st.userId, st.farmId);
-    if (!role || role === "VIEWER") return reply.redirect(`${webUrl()}/integrations?error=role`);
+    if (!role || role === "VIEWER" || role === "ACCOUNTANT") return reply.redirect(`${webUrl()}/integrations?error=role`);
     try {
       const t = await p.exchange(q.code, redirectUri(provider), q);
       const c = await saveConnection(st.farmId, provider, t);
@@ -175,6 +188,7 @@ export async function registerIntegrations(app: FastifyInstance) {
   // Plaid Link: token for the widget, then exchange the public token it returns.
   app.post("/farms/:farmId/integrations/plaid/link-token", async (req, reply) => {
     const { farmId } = req.params as { farmId: string };
+    if (!(await planAllows(reply, farmId, "plaid"))) return;
     const p = providerByKey("plaid")!;
     if (!configured(p)) return reply.badRequest(`Set ${p.env.join(", ")} to enable bank connections.`);
     const v = verifyToken(tokenFromRequest(req))!;

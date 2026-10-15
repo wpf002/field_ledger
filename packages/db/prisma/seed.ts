@@ -60,7 +60,7 @@ async function main() {
   await prisma.user.deleteMany({});           // users are not farm-scoped
   await prisma.commodityPrice.deleteMany({}); // global quote store
 
-  const farm = await prisma.farm.create({ data: { name: "Acreflow Demo Farm" } });
+  const farm = await prisma.farm.create({ data: { name: "Acreflow Demo Farm", plan: "business" } });
 
   // --- chart of accounts from Schedule F (Invariant 6) ---
   for (const l of Object.values(SCHEDULE_F)) {
@@ -253,7 +253,7 @@ async function main() {
   }
 
   // --- second farm (multi-farm demo for the farm switcher) ---
-  const farm2 = await prisma.farm.create({ data: { name: "River Bend Farm" } });
+  const farm2 = await prisma.farm.create({ data: { name: "River Bend Farm", plan: "business" } });
   for (const l of Object.values(SCHEDULE_F)) {
     await prisma.account.create({ data: { farmId: farm2.id, code: l.code, label: LABEL_OVERRIDES[l.code] ?? l.label, kind: l.kind === "income" ? AccountKind.INCOME : AccountKind.EXPENSE, scheduleFCode: l.code, section: sectionOf(l) } });
   }

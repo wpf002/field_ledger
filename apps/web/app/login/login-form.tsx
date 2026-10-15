@@ -11,10 +11,10 @@ const DEMO = [
   { email: "viewer@acreflow.test", name: "Jordan Bell", role: "Viewer", desc: "Read-only — can view everything, but cannot change data.", icon: Eye },
 ];
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({ next, email: initialEmail }: { next?: string; email?: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [password, setPassword] = useState("");
 
   async function signIn(e: string, pw: string, key: string) {

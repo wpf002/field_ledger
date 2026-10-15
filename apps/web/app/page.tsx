@@ -7,12 +7,15 @@ import { Card, SectionHeading } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { CashFlowChart } from "@/components/charts/cash-flow-chart";
 import { prisma } from "@fl/db";
-import { getDemoFarmId } from "@/lib/data";
+import { getDemoFarmId, getPlan } from "@/lib/data";
+import { getCurrentFarm } from "@/lib/session";
+import { DashboardCustomizer } from "@/components/dashboard-customizer";
+import { saveDashboardTiles } from "./dashboard-actions";
 import { getBudgetStatuses } from "@/lib/budgets";
 import { getFinancialSnapshot, cashTrend } from "@/lib/snapshot";
 import { getForecastContext } from "@/lib/forecast";
 import { getInsights } from "@/lib/insights";
-import { sumCents } from "@fl/core";
+import { sumCents, hasFeature } from "@fl/core";
 import { BudgetBar } from "@/components/budget-bar";
 import { fmtDate, fmtMonthYear } from "@/lib/format";
 import { Wallet, Landmark, Scale, Sprout, DollarSign, Banknote, ArrowUpRight, ArrowDownRight, Sparkles, FileSpreadsheet } from "lucide-react";
@@ -47,12 +50,45 @@ export default async function Dashboard() {
     ["Due in 90 Days", snap.obligations90Cents],
   ] as const;
 
+  // Metric tiles: the default strip, or the tiles this user picked (Business custom dashboards).
+  const TILES: Record<string, { label: string; cents: bigint; href?: string; warn?: boolean }> = {
+    receivables: { label: "Receivables", cents: bs.arCents, href: "/revenue" },
+    bills: { label: "Bills Owed", cents: bs.apCents + bs.creditCardsCents, href: "/bills" },
+    grossProfit: { label: "Gross Profit YTD", cents: isYtd.grossProfitCents },
+    ebitda: { label: "EBITDA YTD", cents: isYtd.ebitdaCents },
+    operatingProfit: { label: "Operating Profit YTD", cents: isYtd.operatingProfitCents },
+    inventory: { label: "Inventory", cents: snap.inventoryValueCents, href: "/inventory" },
+    cash90: { label: outlook[0][0], cents: outlook[0][1], href: "/forecast", warn: outlook[0][1] < fc.reserveCents },
+    cashYearEnd: { label: outlook[1][0], cents: outlook[1][1], href: "/forecast", warn: outlook[1][1] < fc.reserveCents },
+    profit12: { label: outlook[2][0], cents: outlook[2][1], href: "/forecast" },
+    peakLine: { label: outlook[3][0], cents: outlook[3][1], href: "/forecast" },
+    lowestCash: { label: outlook[4][0], cents: outlook[4][1], href: "/forecast" },
+    due90: { label: outlook[5][0], cents: outlook[5][1], href: "/liabilities" },
+    revenueMonth: { label: "Revenue This Month", cents: isMonth.revenueCents },
+    nfiYtd: { label: "Net Farm Income YTD", cents: isYtd.netFarmIncomeCents },
+    lineAvailable: { label: "Line Available", cents: snap.lineAvailableCents, href: "/liabilities" },
+    debtService: { label: "Annual Debt Service", cents: snap.annualDebtServiceCents, href: "/liabilities" },
+    workingCapital: { label: "Working Capital", cents: workingCapital, href: "/health" },
+    bookNetWorth: { label: "Net Worth (Book)", cents: bs.totalEquityCents, href: "/statements?view=balance" },
+    landMarket: { label: "Land at Market", cents: bs.landMarketCents, href: "/land" },
+  };
+  const DEFAULT_TILES = ["receivables", "bills", "grossProfit", "ebitda", "operatingProfit", "inventory", "cash90", "cashYearEnd", "profit12", "peakLine", "lowestCash", "due90"];
+  const custom = hasFeature(await getPlan(), "custom_dashboard");
+  const session = await getCurrentFarm();
+  const saved = custom ? (session?.memberships.find((m) => m.farmId === farmId)?.dashboardTiles as string[] | null) : null;
+  const tiles = (saved?.length ? saved : DEFAULT_TILES).filter((k) => TILES[k]);
+
   return (
     <>
       <PageHeader
         title="Overview"
         subtitle={`As of ${fmtDate(asOf)}`}
-        action={<Link href="/statements" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><FileSpreadsheet size={15} /> Statements</Link>}
+        action={
+          <div className="flex items-center gap-2">
+            {custom && <DashboardCustomizer options={Object.entries(TILES).map(([key, t]) => ({ key, label: t.label }))} selected={tiles} defaults={DEFAULT_TILES} save={saveDashboardTiles} />}
+            <Link href="/statements" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><FileSpreadsheet size={15} /> Statements</Link>
+          </div>
+        }
       />
 
       <div className="grid gap-5 lg:grid-cols-3">
@@ -88,22 +124,11 @@ export default async function Dashboard() {
       </div>
 
       <Card className="mt-6 grid grid-cols-2 gap-x-4 gap-y-4 p-5 sm:grid-cols-3 xl:grid-cols-6">
-        {([
-          ["Receivables", bs.arCents], ["Bills Owed", bs.apCents + bs.creditCardsCents], ["Gross Profit YTD", isYtd.grossProfitCents],
-          ["EBITDA YTD", isYtd.ebitdaCents], ["Operating Profit YTD", isYtd.operatingProfitCents], ["Inventory", snap.inventoryValueCents],
-        ] as const).map(([k, v]) => (
-          <div key={k}>
-            <p className="text-xs uppercase tracking-wider text-muted">{k}</p>
-            <p className="mt-1 text-lg font-bold text-ink"><Money cents={v} /></p>
-          </div>
-        ))}
-        <div className="col-span-full border-t border-border" />
-        {outlook.map(([k, v]) => (
-          <Link key={k} href="/forecast" className="group">
-            <p className="text-xs uppercase tracking-wider text-muted group-hover:text-ink">{k}</p>
-            <p className={`mt-1 text-lg font-bold ${v < fc.reserveCents && k.startsWith("Cash") ? "text-rust" : "text-ink"}`}><Money cents={v} /></p>
-          </Link>
-        ))}
+        {tiles.map((k) => {
+          const t = TILES[k]!;
+          const inner = (<><p className="text-xs uppercase tracking-wider text-muted group-hover:text-ink">{t.label}</p><p className={`mt-1 text-lg font-bold ${t.warn ? "text-rust" : "text-ink"}`}><Money cents={t.cents} /></p></>);
+          return t.href ? <Link key={k} href={t.href} className="group">{inner}</Link> : <div key={k}>{inner}</div>;
+        })}
       </Card>
 
       <div className="mt-6">

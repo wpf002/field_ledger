@@ -65,7 +65,10 @@ export function repairVsReplace(x: {
   currentRepairsCents: bigint; repairGrowthPct: number; currentNotePaymentCents: bigint; currentNoteYearsLeft: number; currentResaleCents: bigint;
   overhaulCents: bigint; repairsAfterOverhaulCents: bigint;
   replacementPriceCents: bigint; tradeInCents: bigint; ratePct: number; termYears: number; newRepairsCents: bigint; resaleAtEndCents: bigint;
+  /** Lost work, rentals, and custom hire while an old machine is down, per year if kept. */
   downtimeCostKeepCents?: bigint;
+  /** Fuel, labor, and throughput saved per year by the newer machine (operating efficiency). */
+  efficiencySavingsCents?: bigint;
 }) {
   const H = x.horizonYears;
   const notePaid = (years: number) => x.currentNotePaymentCents * BigInt(Math.min(years, x.currentNoteYearsLeft));
@@ -75,7 +78,7 @@ export function repairVsReplace(x: {
   const financed = x.replacementPriceCents - x.tradeInCents;
   const pay = financed > 0n ? loanPayment(financed, x.ratePct, x.termYears) : 0n;
   // Trading in retires the old note: its remaining balance is assumed covered by the trade-in.
-  const replace = pay * BigInt(Math.min(H, x.termYears)) + x.newRepairsCents * BigInt(H) - x.resaleAtEndCents;
+  const replace = pay * BigInt(Math.min(H, x.termYears)) + x.newRepairsCents * BigInt(H) - x.resaleAtEndCents - (x.efficiencySavingsCents ?? 0n) * BigInt(H);
   const avg = (c: bigint) => c / BigInt(H);
   const options = [
     { key: "keep", label: "Keep", totalCents: keep, perYearCents: avg(keep) },
@@ -116,4 +119,23 @@ export function priceVolume(prior: { quantity: number; amountCents: bigint }[], 
   if (!q0 || !q1) return null;
   const p0 = a0 / q0, p1 = a1 / q1;
   return { volumeCents: BigInt(Math.round((q1 - q0) * p0)), priceCents: BigInt(Math.round((p1 - p0) * q1)), volumePct: q1 / q0 - 1, pricePct: p1 / p0 - 1 };
+}
+
+/**
+ * Sell now or hold stored grain (spec §27). Holding earns the later price on what
+ * survives shrink, less storage and the interest on money not collected (or the
+ * operating line it keeps drawn).
+ */
+export function sellOrHold(x: { quantity: number; priceNow: number; priceLater: number; months: number; storagePerUnitMonth: number; interestPct: number; shrinkPct: number }) {
+  const sellNow = x.quantity * x.priceNow;
+  const kept = x.quantity * (1 - x.shrinkPct);
+  const storage = x.quantity * x.storagePerUnitMonth * x.months;
+  const interest = sellNow * (x.interestPct / 100) * (x.months / 12);
+  const hold = kept * x.priceLater - storage - interest;
+  const c = (v: number) => BigInt(Math.round(v * 100));
+  return {
+    sellNowCents: c(sellNow), holdCents: c(hold), holdGainCents: c(hold - sellNow), storageCents: c(storage), interestCents: c(interest),
+    breakEvenPrice: kept > 0 ? (sellNow + storage + interest) / kept : null,
+    better: hold > sellNow ? ("hold" as const) : ("sell" as const),
+  };
 }
