@@ -6,9 +6,9 @@ import { IntegrationActions } from "@/components/integration-actions";
 import { prisma } from "@fl/db";
 import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 import { fmtDate } from "@/lib/format";
+import { apiFetch } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
-const API = process.env.API_URL ?? "http://localhost:4000";
 
 type Provider = { key: string; name: string; category: string; phase: number; auth: string; pulls: string; docs: string; env: string[]; configured: boolean };
 const ORDER = ["Accounting", "Banking", "Payments", "Farm Software", "Livestock", "Crops", "Market Data", "Weather", "Equipment"];
@@ -17,12 +17,12 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
   const farmId = await getDemoFarmId();
   const editable = canWrite(await getCurrentRole());
   const [providers, connections] = await Promise.all([
-    fetch(`${API}/integrations/providers`, { cache: "no-store" }).then((r) => r.json() as Promise<Provider[]>).catch(() => [] as Provider[]),
+    apiFetch("/integrations/providers").then((r) => r.json() as Promise<Provider[]>).catch(() => [] as Provider[]),
     prisma.connection.findMany({ where: { farmId }, include: { syncRuns: { orderBy: { startedAt: "desc" }, take: 1 } } }),
   ]);
   // Forecast for the weather card when the farm's coordinates are set.
   const weather = connections.some((c) => c.provider === "nws")
-    ? await fetch(`${API}/farms/${farmId}/weather/forecast`, { cache: "no-store" }).then((r) => (r.ok ? (r.json() as Promise<{ periods: { name: string; temp: string; rainChance: number | null; summary: string }[] }>) : null)).catch(() => null)
+    ? await apiFetch(`/farms/${farmId}/weather/forecast`).then((r) => (r.ok ? (r.json() as Promise<{ periods: { name: string; temp: string; rainChance: number | null; summary: string }[] }>) : null)).catch(() => null)
     : null;
   const groups = ORDER.map((cat) => ({ cat, items: providers.filter((p) => p.category === cat) })).filter((g) => g.items.length);
 
