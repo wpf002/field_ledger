@@ -29,27 +29,43 @@ export default async function DebtPage() {
     prisma.liability.findMany({ where: { farmId }, include: { schedule: { orderBy: { number: "asc" } } }, orderBy: [{ type: "asc" }, { createdAt: "asc" }] }),
     getFinancialSnapshot(farmId),
   ]);
-  const { asOf, ratios, bs } = snap;
+  const { ratios, bs } = snap;
+  // Debt is dated today: balances, next payments, and payments to date follow each loan's
+  // schedule (scheduled payments are treated as made). Ratios still come from the books.
+  const now = new Date();
+  const asOf = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const t = asOf.getTime();
+  const rowsOf = (l: (typeof liabilities)[number]) => l.schedule.length
+    ? l.schedule.map((r) => ({ dueDate: r.dueDate, paymentCents: r.paymentCents ?? r.principalCents, principalCents: r.principalCents, interestCents: (r.paymentCents ?? r.principalCents) - r.principalCents, balanceAfterCents: r.endingBalanceCents }))
+    : l.type !== "OPERATING_LINE" && l.nextPaymentAt && l.paymentCents
+      ? amortizationSchedule({ balanceCents: l.balanceCents, annualRatePct: Number(l.ratePct), paymentCents: l.paymentCents, firstDueDate: l.nextPaymentAt, freq: l.paymentFreq as Freq }, 360)
+      : [];
+  const current = new Map(liabilities.map((l) => {
+    const rows = rowsOf(l);
+    const past = rows.filter((r) => r.dueDate.getTime() <= t);
+    const balance = l.type === "OPERATING_LINE" || !rows.length ? l.balanceCents
+      : past.length ? past[past.length - 1]!.balanceAfterCents ?? l.balanceCents
+      : l.schedule.length ? l.originalCents : l.balanceCents;
+    return [l.id, { rows, balance, next: rows.find((r) => r.dueDate.getTime() > t)?.dueDate ?? (l.nextPaymentAt && l.nextPaymentAt.getTime() > t ? l.nextPaymentAt : null) }];
+  }));
+  const yearOut = t + 365 * 86_400_000;
+  const debtService = sumCents(liabilities.flatMap((l) => current.get(l.id)!.rows.filter((r) => r.dueDate.getTime() > t && r.dueDate.getTime() <= yearOut).map((r) => r.paymentCents)));
 
   // Future principal by calendar year. Imported loans carry schedules; others are amortized.
   const maturity = new Map<number, bigint>();
   const add = (y: number, c: bigint) => maturity.set(y, (maturity.get(y) ?? 0n) + c);
   for (const l of liabilities) {
     if (l.type === "OPERATING_LINE") { if (l.balanceCents > 0n) add((l.maturityAt ?? asOf).getUTCFullYear(), l.balanceCents); continue; }
-    if (l.schedule.length) { for (const s of l.schedule) if (s.dueDate.getTime() > t) add(s.dueDate.getUTCFullYear(), s.principalCents); continue; }
-    if (l.nextPaymentAt && l.paymentCents) {
-      for (const r of amortizationSchedule({ balanceCents: l.balanceCents, annualRatePct: Number(l.ratePct), paymentCents: l.paymentCents, firstDueDate: l.nextPaymentAt, freq: l.paymentFreq as Freq }, 360)) add(r.dueDate.getUTCFullYear(), r.principalCents);
-    }
+    for (const r of current.get(l.id)!.rows) if (r.dueDate.getTime() > t) add(r.dueDate.getUTCFullYear(), r.principalCents);
   }
   const years = [...maturity.entries()].sort((a, b) => a[0] - b[0]);
   const maxYear = years.reduce((m, [, c]) => (c > m ? c : m), 0n);
 
   const groups = new Map<string, bigint>();
-  for (const l of liabilities) groups.set(GROUP(l), (groups.get(GROUP(l)) ?? 0n) + l.balanceCents);
-  const total = sumCents(liabilities.map((l) => l.balanceCents));
+  for (const l of liabilities) groups.set(GROUP(l), (groups.get(GROUP(l)) ?? 0n) + current.get(l.id)!.balance);
+  const total = sumCents(liabilities.map((l) => current.get(l.id)!.balance));
   const ytdStart = new Date(Date.UTC(asOf.getUTCFullYear(), 0, 1)).getTime();
-  const paidYtd = (k: "interestCents" | "principalCents") => sumCents(liabilities.flatMap((l) => l.schedule.filter((s) => s.dueDate.getTime() >= ytdStart && s.dueDate.getTime() <= t).map((s) => s[k])));
+  const paidYtd = (k: "interestCents" | "principalCents") => sumCents(liabilities.flatMap((l) => current.get(l.id)!.rows.filter((s) => s.dueDate.getTime() >= ytdStart && s.dueDate.getTime() <= t).map((s) => s[k])));
 
   return (
     <>
@@ -61,7 +77,7 @@ export default async function DebtPage() {
         <>
           <div className="grid grid-cols-2 gap-5 xl:grid-cols-4">
             <StatCard label="Total Debt" value={<Money cents={total} className="text-white" />} sub={`${liabilities.length} loan${liabilities.length === 1 ? "" : "s"}`} variant="brown" />
-            <StatCard label="Debt Service" value={<Money cents={snap.annualDebtServiceCents} />} sub="Next 12 months" />
+            <StatCard label="Debt Service" value={<Money cents={debtService} />} sub="Next 12 months" />
             <StatCard label="Interest YTD" value={<Money cents={paidYtd("interestCents")} />} sub={<>Principal <Money cents={paidYtd("principalCents")} className="text-sm" /></>} />
             <StatCard label="Debt Coverage" value={fmtR(ratios.termDebtCoverage)} sub="Trailing 12 months" />
           </div>
@@ -118,10 +134,10 @@ export default async function DebtPage() {
                     </td>
                     <td className="px-3 py-3 text-muted">{l.debtType ?? GROUP(l)}</td>
                     <td className="px-3 py-3 text-right"><Money cents={l.limitCents ?? l.originalCents} /></td>
-                    <td className="px-3 py-3 text-right font-medium"><Money cents={l.balanceCents} /></td>
+                    <td className="px-3 py-3 text-right font-medium"><Money cents={current.get(l.id)!.balance} /></td>
                     <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-ink">{Number(l.ratePct).toFixed(2)}%<p className={clsx("text-xs", l.rateType?.startsWith("Variable") ? "text-rust" : "text-muted")}>{l.rateType?.split(" ")[0] ?? "Fixed"}</p></td>
                     <td className="whitespace-nowrap px-3 py-3 text-right">{l.paymentCents ? <><Money cents={l.paymentCents} /><p className="text-xs text-muted">{FREQ_LABEL[l.paymentFreq] ?? l.paymentFreq}</p></> : <span className="text-muted">Revolving</span>}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-muted">{l.nextPaymentAt ? fmtDate(l.nextPaymentAt) : "–"}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-muted">{current.get(l.id)!.next ? fmtDate(current.get(l.id)!.next!) : "–"}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-muted">{l.maturityAt ? fmtMonthYear(l.maturityAt) : "–"}</td>
                     <td className="px-3 py-3"><LiabilitySchedule farmId={farmId} id={l.id} name={l.name} nextPaymentAt={l.nextPaymentAt?.toISOString() ?? null} /></td>
                   </tr>
