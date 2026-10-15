@@ -33,11 +33,11 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
       <PageHeader title="Integrations" />
       {searchParams.connected && <p className="mb-4 rounded-btn bg-mint px-4 py-2 text-sm text-primary">Connected. The first sync is running.</p>}
       {searchParams.error && <p className="mb-4 rounded-btn bg-[#F3E3E0] px-4 py-2 text-sm text-negative">Connection failed ({searchParams.error}).</p>}
-      <Card className="divide-y divide-border overflow-hidden">
+      <div className="space-y-6">
         {groups.map((g) => (
           <section key={g.cat}>
-            <h3 className="bg-surface-sunken/60 px-5 py-2 text-xs font-medium uppercase tracking-wider text-muted">{g.cat}</h3>
-            <div className="divide-y divide-border">
+            <h3 className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted">{g.cat}</h3>
+            <Card className="divide-y divide-border overflow-hidden">
               {g.items.map((p) => {
                 const conns = connections.filter((c) => c.provider === p.key);
                 const ready = p.configured && ["oauth2", "plaid_link", "connect_url", "credentials", "server_key"].includes(p.auth);
@@ -48,13 +48,13 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
                 const tip = status === "Needs Credentials" ? `Set ${p.env.join(" and ")} on the server` : undefined;
                 return (
                   <div key={p.key} className="px-5 py-4">
-                    <div className="grid items-center gap-3 md:grid-cols-[minmax(0,1fr)_9rem_22rem]">
+                    <div className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1fr)_9rem_22rem]">
                       <div className="min-w-0">
                         <h4 className="font-serif text-base font-semibold text-ink">{p.name}</h4>
                         <p className="truncate text-sm text-muted" title={p.pulls}>{p.pulls}</p>
                       </div>
                       <span title={tip} className={clsx("w-fit rounded-pill px-2.5 py-0.5 text-xs font-medium", status === "Connected" || status === "On" ? "bg-mint text-positive" : status === "Error" ? "bg-[#F3E3E0] text-negative" : status === "Available" ? "bg-[#F6EAC6] text-ink" : "bg-surface-sunken text-muted")}>{status}</span>
-                      <div className="min-w-0 md:flex md:justify-end">
+                      <div className="min-w-0 empty:hidden sm:col-span-2 xl:col-span-1 xl:flex xl:justify-end">
                         {!conns.length && status === "File Import" && <Link href={p.docs} className="text-sm text-primary underline">Import CSV</Link>}
                         {!conns.length && status === "Partner Access" && <a href={p.docs} target="_blank" rel="noreferrer" className="text-sm text-muted underline">Partner Program</a>}
                         {locked && <Link href="/account#plan" className="text-sm text-primary underline">See Plans</Link>}
@@ -83,10 +83,10 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
                   </div>
                 );
               })}
-            </div>
+            </Card>
           </section>
         ))}
-      </Card>
+      </div>
     </>
   );
 }
