@@ -1,8 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
-import type { BalanceSheetInputs, StatementRow } from "@fl/core";
+import { balanceSheetAt, monthEnds, valueInventoryItem, latestPriceCents, type BalanceSheetInputs, type StatementRow, type InventorySnap, type AssetRec } from "@fl/core";
 
 /** Load everything the statement engine needs for one farm. */
-export async function loadStatementInputs(prisma: PrismaClient, farmId: string): Promise<BalanceSheetInputs & { rows: (StatementRow & { expectedCashDate: Date | null; description: string })[]; loans: (BalanceSheetInputs["loans"][number] & { name: string })[]; cutoff: Date | null; ownerLaborAnnualCents: bigint; hasOpeningBalances: boolean }> {
+async function loadRaw(prisma: PrismaClient, farmId: string): Promise<BalanceSheetInputs & { rows: (StatementRow & { expectedCashDate: Date | null; description: string })[]; loans: (BalanceSheetInputs["loans"][number] & { name: string })[]; cutoff: Date | null; ownerLaborAnnualCents: bigint; hasOpeningBalances: boolean }> {
   const [farm, txns, inventory, assets, loans, opening, landValues] = await Promise.all([
     prisma.farm.findUniqueOrThrow({ where: { id: farmId }, select: { reportCutoff: true, ownerLaborChargeCents: true } }),
     prisma.transaction.findMany({
@@ -50,4 +50,34 @@ export async function loadStatementInputs(prisma: PrismaClient, farmId: string):
 /** Cash-flow class for charts of accounts that don't carry one (Schedule F starter chart). */
 function defaultCashClass(section: string) {
   return section === "REV" ? "Customer collections" : section === "INT" ? "Debt payments - interest" : "Other operating payments";
+}
+
+const LEGACY_CATEGORY: Record<string, string> = { LIVESTOCK: "Livestock - breeding", FEED: "Feed - hay", CROPS: "Crops - grain", SUPPLIES: "Semen inventory" };
+
+/**
+ * Statement inputs for one farm. Farms on the starter model keep inventory and
+ * equipment as InventoryItems; those are valued (mark-to-market, equipment at book)
+ * as of the reporting date and fed to the balance sheet, and without an opening
+ * balance sheet equity opens at whatever balances the books on day one.
+ */
+export async function loadStatementInputs(prisma: PrismaClient, farmId: string) {
+  const inputs = await loadRaw(prisma, farmId);
+  const now = new Date();
+  const asOf = inputs.cutoff ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+  if (inputs.inventory.length === 0 && inputs.assets.length === 0) {
+    const [items, prices] = await Promise.all([prisma.inventoryItem.findMany({ where: { farmId } }), prisma.commodityPrice.findMany()]);
+    const snaps: InventorySnap[] = [];
+    const assets: AssetRec[] = [];
+    const dates = [inputs.opening.asOf, ...monthEnds(new Date(inputs.opening.asOf.getTime() + 86_400_000), asOf)];
+    for (const it of items) {
+      const v = valueInventoryItem(it, latestPriceCents(prices, it.marketSymbol), asOf);
+      // Held at today's value: these farms don't post depreciation or revaluation entries.
+      if (it.category === "EQUIPMENT") assets.push({ category: "Machinery & equipment", purchasedAt: inputs.opening.asOf, originalCostCents: v.valueCents, salvageCents: 0n, usefulLifeYears: null, disposedAt: null });
+      else for (const m of dates) snaps.push({ asOf: m, category: LEGACY_CATEGORY[it.category] ?? "Semen inventory", bsValuation: "market", costBasisCents: it.costBasisCents ?? 0n, marketValueCents: v.valueCents });
+    }
+    inputs.inventory = snaps;
+    inputs.assets = assets;
+  }
+  if (!inputs.hasOpeningBalances) inputs.opening.retainedCents = balanceSheetAt(inputs, inputs.opening.asOf).balanceCheckCents;
+  return inputs;
 }

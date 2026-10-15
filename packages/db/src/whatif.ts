@@ -2,7 +2,7 @@ import {
   balanceSheetAt, twelveMonthForecast, financialRatios, healthScore, loanPayment, loanBalance, currentPortion, netBookValue, fromSections, sumCents,
   type BalanceSheet, type Drivers, type LoanRec, type AssetRec, type CashItem, type IncomeStatement,
 } from "@fl/core";
-import type { getForecastContext } from "./forecast";
+import type { ForecastContext } from "./forecast-context.js";
 
 export type WhatIf = {
   pricePct: number; volumePct: number; costPct: number;
@@ -15,7 +15,7 @@ export type Outcome = {
   currentRatio: number | null; debtToAsset: number | null; coverage: number | null; health: number;
 };
 
-type Ctx = Awaited<ReturnType<typeof getForecastContext>>;
+type Ctx = ForecastContext;
 const DAY = 86_400_000;
 const c = (dollars: number) => BigInt(Math.round(dollars * 100));
 

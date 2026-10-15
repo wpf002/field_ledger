@@ -2,10 +2,12 @@ import type { FastifyInstance } from "fastify";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@fl/db";
 import { z } from "zod";
+import { verifyToken, tokenFromRequest, roleForFarm } from "../lib/session.js";
 import { classifyChat, parseQuickLog, formatCentsDisplay, inferScheduleFCode } from "@fl/core";
 import {
-  LEDGER_TOOLS, financialSummary, recentTransactions, upcomingObligations,
+  LEDGER_TOOLS, TOOL_TIER, financialSummary, recentTransactions, upcomingObligations,
   marketableInventory, budgetStatuses, scheduleFReport, alertsList,
+  financialHealth, cashForecast, enterpriseProfitability, accountsReceivable, financialBrief,
 } from "../lib/ledger-tools.js";
 
 const MODEL = process.env.FLINT_MODEL || "claude-opus-4-8";
@@ -15,18 +17,35 @@ const fmt = (cents: string) => formatCentsDisplay(BigInt(cents), { sign: false }
 const SYSTEM = `You are Flint, the assistant for the Acreflow farm accounting app.
 Answer questions about the farm's finances ONLY using the provided tools, which return the user's real ledger data.
 Every number you state MUST come from a tool result — never estimate, guess, or invent figures.
+Use the most specific tool: enterprise, crop, and livestock profitability for "what makes money"; cash_forecast for "how much cash in July"; run_scenario for "what if prices fall 20%" or "can I buy this tractor"; accounts_receivable for who owes money.
+Tool results cover only the records each tool returns; don't extrapolate beyond them.
 If the data needed to answer isn't available from the tools, say so plainly. Be concise and practical. Money is in integer cents; format it as dollars.
 Respond in plain text for a chat bubble: short sentences and simple "• " bullet lists. Do NOT use markdown tables, pipes, or "#" headers.`;
 
 const ANTHROPIC_TOOLS: Anthropic.Tool[] = [
-  { name: "financial_summary", description: "Total income, expenses, net profit, inventory value, liabilities, and net worth.", input_schema: { type: "object", properties: {} } },
+  { name: "financial_summary", description: "Year-to-date revenue, expenses, net farm income, plus inventory value, liabilities, and net worth at market.", input_schema: { type: "object", properties: {} } },
   { name: "recent_transactions", description: "The most recent ledger transactions.", input_schema: { type: "object", properties: { limit: { type: "integer" } } } },
   { name: "upcoming_obligations", description: "Loan and lease payments due within a window of days.", input_schema: { type: "object", properties: { days: { type: "integer" } } } },
   { name: "marketable_inventory", description: "Livestock and crops available to sell, valued at current market prices.", input_schema: { type: "object", properties: {} } },
   { name: "budget_status", description: "Budget vs actual spend per category.", input_schema: { type: "object", properties: {} } },
   { name: "schedule_f", description: "Schedule F tax summary (gross income, expenses, net farm profit) for a year.", input_schema: { type: "object", properties: { year: { type: "integer" } } } },
   { name: "alerts", description: "Active alerts: overdue invoices, expired leases, upcoming payments, budget overages.", input_schema: { type: "object", properties: {} } },
+  { name: "cash_position", description: "Cash, operating line balance and availability, working capital, receivables, and payables at the reporting date.", input_schema: { type: "object", properties: {} } },
+  { name: "cash_forecast", description: "13-week and 12-month cash forecast: ending cash by month, line balance, low point, and whether cash falls below the reserve.", input_schema: { type: "object", properties: { scenario: { type: "string", enum: ["base", "optimistic", "downside"] } } } },
+  { name: "enterprise_profitability", description: "Profit and loss by enterprise (business unit) for a year: revenue, transfers, direct costs, gross profit, overhead, net income.", input_schema: { type: "object", properties: { year: { type: "integer" } } } },
+  { name: "crop_profitability", description: "Per-acre economics for each crop season in a year: yield, price, revenue, cost, profit per acre, break-even yield and price.", input_schema: { type: "object", properties: { year: { type: "integer" } } } },
+  { name: "livestock_profitability", description: "Per-head (or per-unit) economics for livestock enterprises in a year: revenue, cost, feed, and profit per unit.", input_schema: { type: "object", properties: { year: { type: "integer" } } } },
+  { name: "debt_summary", description: "Every loan (balance, rate, payment, maturity) plus debt ratios, term debt coverage, and repayment margin.", input_schema: { type: "object", properties: {} } },
+  { name: "inventory_position", description: "Inventory on hand at the reporting date: quantity, cost basis, market value, and expected use or sale.", input_schema: { type: "object", properties: {} } },
+  { name: "accounts_receivable", description: "Open customer invoices with balances and due dates, and receivables aging buckets.", input_schema: { type: "object", properties: {} } },
+  { name: "financial_health", description: "Health score (0-100) by liquidity, solvency, profitability, repayment capacity, and efficiency, with the underlying ratios.", input_schema: { type: "object", properties: {} } },
+  { name: "insights", description: "Findings about the operation from the books (risks, opportunities, trends), each with a recommendation and its data sources.", input_schema: { type: "object", properties: {} } },
+  { name: "financial_brief", description: "The weekly or monthly financial brief: health, cash outlook, plan variance, lowest-margin enterprise, line peak, and recommended actions.", input_schema: { type: "object", properties: { kind: { type: "string", enum: ["weekly", "monthly"] } } } },
+  { name: "run_scenario", description: "What-if over the next 12 months: change prices, volume, or costs (percent), add an equipment purchase, or a new hire, and compare profit, cash, line, debt, and health before vs after. Read-only; nothing is saved.", input_schema: { type: "object", properties: { pricePct: { type: "number" }, volumePct: { type: "number" }, costPct: { type: "number" }, equipmentPrice: { type: "number" }, downPayment: { type: "number" }, ratePct: { type: "number" }, years: { type: "integer" }, hireAnnualWage: { type: "number" } } } },
 ];
+
+/** Tools a role may use: viewers read; everyone else may also run forecasts and scenarios. */
+const toolsFor = (role: string | null) => ANTHROPIC_TOOLS.filter((t) => TOOL_TIER[t.name] === "read" || (role && role !== "VIEWER"));
 
 /** Grounded answer without an LLM: route to a tool, format its real figures. */
 async function chatDeterministic(farmId: string, message: string) {
@@ -34,7 +53,7 @@ async function chatDeterministic(farmId: string, message: string) {
   let answer = "";
   if (intent === "summary") {
     const s = await financialSummary(farmId);
-    answer = `Based on your ledger — income ${fmt(s.incomeCents)}, expenses ${fmt(s.expenseCents)}, net profit ${fmt(s.netProfitCents)}. Tracked inventory is valued at ${fmt(s.inventoryValueCents)} against ${fmt(s.liabilitiesCents)} of liabilities, so your estimated net worth is ${fmt(s.netWorthCents)}.`;
+    answer = `Year to date through ${s.asOf}: revenue ${fmt(s.incomeCents)}, expenses ${fmt(s.expenseCents)}, net farm income ${fmt(s.netProfitCents)}. Inventory and livestock are valued at ${fmt(s.inventoryValueCents)}; liabilities total ${fmt(s.liabilitiesCents)}; net worth at market is ${fmt(s.netWorthCents)}.`;
   } else if (intent === "transactions") {
     const t = await recentTransactions(farmId, 5);
     answer = t.length ? `Your 5 most recent transactions:\n${t.map((x) => `• ${x.date} — ${x.description} (${x.category}): ${formatCentsDisplay(BigInt(x.amountCents), { sign: true })}`).join("\n")}` : "I don't have any transactions recorded yet.";
@@ -51,6 +70,23 @@ async function chatDeterministic(farmId: string, message: string) {
   } else if (intent === "schedule_f") {
     const sf = await scheduleFReport(farmId);
     answer = `For ${sf.year}, your Schedule F shows ${fmt(sf.grossIncomeCents)} gross income and ${fmt(sf.totalExpenseCents)} in deductible expenses, for a net farm profit of ${fmt(sf.netFarmProfitCents)}.`;
+  } else if (intent === "health") {
+    const h = await financialHealth(farmId);
+    answer = `Financial health is ${h.status} (${h.overall}/100) as of ${h.asOf}:\n${h.categories.map((c) => `• ${c.category}: ${c.status} (${c.score})`).join("\n")}`;
+  } else if (intent === "forecast") {
+    const f = await cashForecast(farmId);
+    const low = f.months.reduce((a, m) => (BigInt(m.endingCashCents) < BigInt(a.endingCashCents) ? m : a), f.months[0]!);
+    answer = `Base forecast from ${f.asOf}:\n${f.months.map((m) => `• ${m.monthEnd.slice(0, 7)}: cash ${fmt(m.endingCashCents)}, line ${fmt(m.lineBalanceCents)}`).join("\n")}\nLow point ${fmt(low.endingCashCents)} at ${low.monthEnd.slice(0, 7)}.`;
+  } else if (intent === "enterprises") {
+    const e = await enterpriseProfitability(farmId);
+    const rows = e.enterprises.filter((x) => x.enterprise !== "Unassigned").sort((a, b) => Number(BigInt(b.netIncomeCents) - BigInt(a.netIncomeCents)));
+    answer = `Net income by enterprise, ${e.year} through ${e.through}:\n${rows.map((x) => `• ${x.enterprise}: ${formatCentsDisplay(BigInt(x.netIncomeCents), { sign: true })} on ${fmt(x.revenueCents)} revenue`).join("\n")}`;
+  } else if (intent === "receivables") {
+    const r = await accountsReceivable(farmId);
+    answer = r.invoices.length ? `Open invoices as of ${r.asOf}:\n${r.invoices.slice(0, 8).map((i) => `• ${i.customer}: ${fmt(i.balanceCents)} (due ${i.due})`).join("\n")}` : "No one owes you money right now.";
+  } else if (intent === "brief") {
+    const b = await financialBrief(farmId);
+    answer = `${b.lines.join("\n")}${b.actions.length ? `\nRecommended:\n${b.actions.map((a) => `• ${a}`).join("\n")}` : ""}`;
   } else {
     const a = await alertsList(farmId);
     answer = a.length ? `You have ${a.length} active alert${a.length === 1 ? "" : "s"}:\n${a.map((x) => `• [${x.severity}] ${x.title} — ${x.message}`).join("\n")}` : "You're all caught up — no active alerts.";
@@ -85,7 +121,9 @@ function withTailBreakpoint(messages: Anthropic.MessageParam[]): Anthropic.Messa
 }
 
 /** Grounded answer via Claude tool-calling over the same ledger tools. */
-async function chatClaude(farmId: string, message: string) {
+async function chatClaude(farmId: string, message: string, role: string | null) {
+  const tools = toolsFor(role);
+  const allowed = new Set(tools.map((t) => t.name));
   const client = new Anthropic();
   // Block form from the start, so the question renders identically whether or not
   // it currently carries the breakpoint.
@@ -95,7 +133,7 @@ async function chatClaude(farmId: string, message: string) {
       model: MODEL,
       max_tokens: 8000,
       system: SYSTEM,
-      tools: ANTHROPIC_TOOLS,
+      tools,
       messages: withTailBreakpoint(messages),
     });
     if (res.stop_reason !== "tool_use") {
@@ -106,7 +144,7 @@ async function chatClaude(farmId: string, message: string) {
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const block of res.content) {
       if (block.type === "tool_use") {
-        const handler = LEDGER_TOOLS[block.name];
+        const handler = allowed.has(block.name) ? LEDGER_TOOLS[block.name] : undefined;
         const data = handler ? await handler(farmId, block.input as Record<string, unknown>) : { error: "unknown tool" };
         results.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(data) });
       }
@@ -125,7 +163,9 @@ export async function registerAssistant(app: FastifyInstance) {
     const parsed = z.object({ message: z.string().min(1) }).safeParse(req.body);
     if (!parsed.success) return reply.badRequest(parsed.error.message);
     try {
-      return hasKey() ? await chatClaude(farmId, parsed.data.message) : await chatDeterministic(farmId, parsed.data.message);
+      const v = verifyToken(tokenFromRequest(req));
+      const role = v ? await roleForFarm(v.userId, farmId) : null;
+      return hasKey() ? await chatClaude(farmId, parsed.data.message, role) : await chatDeterministic(farmId, parsed.data.message);
     } catch (e) {
       // Fall back to grounded deterministic answer if the LLM call fails.
       return { ...(await chatDeterministic(farmId, parsed.data.message)), note: e instanceof Error ? e.message : "llm error" };

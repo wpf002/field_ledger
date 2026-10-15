@@ -1,31 +1,14 @@
 import { cache } from "react";
-import { prisma } from "@fl/db";
-import {
-  balanceSheetAt, thirteenWeekForecast, twelveMonthForecast, incomeStatement, DEFAULT_SCENARIOS,
-  type Drivers, type ScenarioKey, type StatementRow,
-} from "@fl/core";
+import { prisma, forecastContext, SCENARIO_KEYS } from "@fl/db";
+import { balanceSheetAt, twelveMonthForecast, incomeStatement, type StatementRow } from "@fl/core";
 import { getStatementContext } from "./statements";
 
-export const SCENARIO_KEYS: ScenarioKey[] = ["base", "optimistic", "downside"];
+export { SCENARIO_KEYS };
 
-/** Forecast settings and inputs for the current farm, as of its reporting date. */
+/** Forecast settings and inputs for the current farm, as of its reporting date (once per request). */
 export const getForecastContext = cache(async (farmId: string) => {
   const { inputs, asOf } = await getStatementContext(farmId);
-  const [setting, line] = await Promise.all([
-    prisma.forecastSetting.findUnique({ where: { farmId } }),
-    prisma.liability.findFirst({ where: { farmId, type: "OPERATING_LINE" } }),
-  ]);
-  const saved = (setting?.scenarios ?? {}) as Partial<Record<ScenarioKey, Drivers>>;
-  const drivers = Object.fromEntries(SCENARIO_KEYS.map((k) => [k, saved[k] ?? DEFAULT_SCENARIOS[k].drivers])) as Record<ScenarioKey, Drivers>;
-  const bs = balanceSheetAt(inputs, asOf);
-  const lineTerms = line ? { limitCents: line.limitCents ?? line.originalCents, ratePct: Number(line.ratePct), balanceCents: bs.operatingLineCents } : null;
-  const reserveCents = setting?.reserveCents ?? 2_500_000n;
-  const base = { rows: inputs.rows, asOf, cashCents: bs.cashCents, loans: inputs.loans, assets: inputs.assets, line: lineTerms, reserveCents };
-  return {
-    asOf, reserveCents, drivers, lineTerms, inputs,
-    thirteen: (k: ScenarioKey) => thirteenWeekForecast({ ...base, drivers: drivers[k] }),
-    twelve: (k: ScenarioKey) => twelveMonthForecast({ ...base, drivers: drivers[k] }),
-  };
+  return forecastContext(prisma, farmId, { ...inputs, asOf });
 });
 
 /**

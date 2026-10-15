@@ -162,6 +162,9 @@ two that use the in-progress 2026 hay season.
 **Acceptance:** for each farm the engine surfaces ≥ 8 of its 10 `AI_Insights`;
 every figure in a brief traces to a record.
 
+**Result:** 37 of 40 (BRN 9, LAN 9, RCK 10, SAM 9). Not detected: BRN-05 (two more
+cows), LAN-08 (barn payback), SAM-08 (storage timing).
+
 ## Phase 17 — Integrations, tier 1 (spec Phase 1 list)
 
 Each requires a developer account and keys from the provider.

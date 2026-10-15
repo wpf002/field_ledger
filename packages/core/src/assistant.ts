@@ -52,12 +52,17 @@ export function parseQuickLog(text: string, today: string): QuickLogDraft | { er
   };
 }
 
-export type ChatIntent = "summary" | "transactions" | "obligations" | "inventory" | "budgets" | "schedule_f" | "alerts";
+export type ChatIntent = "summary" | "transactions" | "obligations" | "inventory" | "budgets" | "schedule_f" | "alerts" | "health" | "forecast" | "enterprises" | "receivables" | "brief";
 
 /** Map a question to the ledger tool that should answer it (deterministic
  *  fallback when no LLM key is configured). */
 export function classifyChat(message: string): ChatIntent {
   const m = message.toLowerCase();
+  if (/(brief|summary of the week|this week|what should i do|recommend)/.test(m)) return "brief";
+  if (/(who owes|owe me|receivable|unpaid invoice|collect)/.test(m)) return "receivables";
+  if (/(make money|most money|profitab|which (crop|enterprise)|losing money|margin)/.test(m)) return "enterprises";
+  if (/(forecast|cash (in|by|next)|how much cash will|projected|next (month|quarter|year)|in (january|february|march|april|may|june|july|august|september|october|november|december))/.test(m)) return "forecast";
+  if (/(health|healthy|score|ratio|solvency|liquidity)/.test(m)) return "health";
   if (/(transaction|recent activity|history|last few|what did i (spend|buy))/.test(m)) return "transactions";
   if (/(alert|overdue|expired|lapsed|reminder|warning|attention|flag)/.test(m)) return "alerts";
   if (/(owe|payment|due|obligation|loan|lease|rent|amorti|liabilit|upcoming expense)/.test(m)) return "obligations";

@@ -11,6 +11,7 @@ import { getDemoFarmId } from "@/lib/data";
 import { getBudgetStatuses } from "@/lib/budgets";
 import { getFinancialSnapshot, cashTrend } from "@/lib/snapshot";
 import { getForecastContext } from "@/lib/forecast";
+import { getInsights } from "@/lib/insights";
 import { sumCents } from "@fl/core";
 import { BudgetBar } from "@/components/budget-bar";
 import { fmtDate, fmtMonthYear } from "@/lib/format";
@@ -31,6 +32,7 @@ export default async function Dashboard() {
     orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 5, include: { account: true },
   });
   const trend = cashTrend(snap.rows, snap.opening, asOf);
+  const insights = await getInsights(farmId);
   const workingCapital = bs.totalCurrentAssetsCents - bs.totalCurrentLiabilitiesCents;
   // Outlook from the base-case forecast.
   const fc = await getForecastContext(farmId);
@@ -144,9 +146,15 @@ export default async function Dashboard() {
         </Card>
 
         <Card className="flex flex-col p-6">
-          <SectionHeading icon={<Sparkles size={18} className="text-rust" />} title="AI Insights" action={<Link href="/assistant" className="rounded-btn border border-border px-3 py-1.5 text-sm text-ink hover:bg-tag/40">Ask</Link>} />
-          <div className="flex flex-1 items-center justify-center">
-            <p className="py-6 text-center text-sm text-muted">No Insights Yet</p>
+          <SectionHeading icon={<Sparkles size={18} className="text-rust" />} title="AI Insights" action={<Link href="/insights" className="text-sm text-muted hover:text-ink">View All</Link>} />
+          <div className="mt-4 flex-1 space-y-4">
+            {insights.slice(0, 3).map((i, n) => (
+              <Link key={n} href="/insights" className="block">
+                <p className="text-sm font-medium text-ink">{i.title}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs text-muted">{i.finding}</p>
+              </Link>
+            ))}
+            {insights.length === 0 && <p className="py-6 text-center text-sm text-muted">No Findings</p>}
           </div>
         </Card>
       </div>

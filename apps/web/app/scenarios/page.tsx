@@ -7,7 +7,7 @@ import { Table, Th, Td } from "@/components/ui/table";
 import { prisma, evaluateLever, leverContext, type LeverTemplate } from "@fl/db";
 import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 import { getForecastContext } from "@/lib/forecast";
-import { runWhatIf, type WhatIf, type Outcome } from "@/lib/whatif";
+import { runWhatIf, type WhatIf, type Outcome } from "@fl/db";
 import { addLever, removeLever } from "./actions";
 import { Trash2 } from "lucide-react";
 

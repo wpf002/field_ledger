@@ -15,3 +15,7 @@ export { wipeFarm } from "./wipe.js";
 export { loadStatementInputs } from "./statement-inputs.js";
 export { loadEnterpriseInputs } from "./enterprise-inputs.js";
 export { evaluateLever, leverContext, LEVER_TEMPLATES, type LeverTemplate, type LeverParams } from "./levers.js";
+export { generateInsights, type Insight, type Severity } from "./insights.js";
+export { forecastContext, SCENARIO_KEYS, type ForecastContext } from "./forecast-context.js";
+export { runWhatIf, type WhatIf, type Outcome } from "./whatif.js";
+export { generateBrief, type Brief, type BriefLine } from "./brief.js";

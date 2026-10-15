@@ -32,5 +32,10 @@ describe("chat intent classifier", () => {
     expect(classifyChat("am I over budget on feed?")).toBe("budgets");
     expect(classifyChat("what's my Schedule F profit for the year")).toBe("schedule_f");
     expect(classifyChat("any overdue invoices or expired leases?")).toBe("alerts");
+    expect(classifyChat("which customers owe me money?")).toBe("receivables");
+    expect(classifyChat("which crop made the most money?")).toBe("enterprises");
+    expect(classifyChat("how much cash will I have in July?")).toBe("forecast");
+    expect(classifyChat("what's my health score?")).toBe("health");
+    expect(classifyChat("give me this week's brief")).toBe("brief");
   });
 });

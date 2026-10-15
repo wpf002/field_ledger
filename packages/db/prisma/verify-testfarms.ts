@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import { balanceSheetAt, cashFlowReport, incomeStatement, financialRatios, ratioInputsFor, periodFor, enterpriseStatements, cropEconomics, headEconomics, openItemFlows, scheduledDebtFlows, twelveMonthForecast, DEFAULT_SCENARIOS, type BalanceSheet, type IncomeStatement, type Ratios } from "@fl/core";
 import { loadEnterpriseInputs } from "../src/enterprise-inputs.js";
 import { evaluateLever, leverContext, type LeverTemplate } from "../src/levers.js";
+import { generateInsights } from "../src/insights.js";
+import { INSIGHT_TOPICS } from "../src/testfarms/insights.js";
 import { prisma } from "../src/index.js";
 import { loadStatementInputs } from "../src/statement-inputs.js";
 import { readWorkbook, toCents, toDate, type Row } from "../src/testfarms/workbook.js";
@@ -238,6 +240,15 @@ async function verifyFarm(file: string): Promise<Result[]> {
     leverNotes.push({ id: lv.externalId ?? lv.id, template: lv.template ?? "manual", exp, got, ok: Number.isFinite(off) && off <= 0.05 });
   }
 
+  // Insights engine: at least 8 of each farm's 10 reference insights must be found.
+  const insRes: Result = { check: "Insights found (>= 8 of 10)", compared: 1, failures: [] };
+  const found = new Set((await generateInsights(prisma, farm.id)).map((i) => i.topic));
+  const refs = await prisma.insightReference.findMany({ where: { farmId: farm.id }, orderBy: { externalId: "asc" } });
+  const hits = refs.filter((r) => (INSIGHT_TOPICS[r.externalId] ?? []).some((t) => found.has(t)));
+  if (hits.length < 8) insRes.failures.push(`${hits.length}/10 found; missing ${refs.filter((r) => !hits.includes(r)).map((r) => r.externalId).join(", ")}`);
+  insightNotes.push(`${bizId}: ${hits.length}/10 reference insights found; missing ${refs.filter((r) => !hits.includes(r)).map((r) => `${r.externalId} "${r.title}"`).join("; ") || "none"}`);
+  results.push(insRes);
+
   // Sub-ledgers at the cutoff.
   const subRes: Result = { check: "AR, debt, herd flow", compared: 0, failures: [] };
   const cutoff = inputs.cutoff!;
@@ -285,6 +296,7 @@ async function verifyFarm(file: string): Promise<Result[]> {
 }
 
 const forecastNotes: string[] = [];
+const insightNotes: string[] = [];
 const leverNotes: { id: string; template: string; exp: number; got: number; ok: boolean }[] = [];
 const cutoffOf = (d: Date | null) => { if (!d) throw new Error("farm has no report cutoff"); return d; };
 
@@ -299,6 +311,7 @@ async function main() {
     }
   }
   for (const n of forecastNotes) console.log(`INFO  ${n}`);
+  for (const n of insightNotes) console.log(`INFO  ${n}`);
   const fromBooks = leverNotes.filter((l) => l.template !== "manual");
   console.log(`INFO  scenario levers within 5%: ${leverNotes.filter((l) => l.ok).length}/${leverNotes.length} (from the books: ${fromBooks.filter((l) => l.ok).length}/${fromBooks.length})`);
   for (const l of leverNotes.filter((x) => !x.ok)) console.log(`        ${l.id} [${l.template}] expected ${l.exp} got ${Number.isFinite(l.got) ? l.got.toFixed(2) : "n/a"}`);
