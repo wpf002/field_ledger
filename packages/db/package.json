@@ -11,11 +11,14 @@
     "deploy": "prisma migrate deploy",
     "studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
+    "import:testfarms": "tsx prisma/import-testfarms.ts",
+    "verify:testfarms": "tsx prisma/verify-testfarms.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fl/core": "workspace:*",
-    "@prisma/client": "^5.20.0"
+    "@prisma/client": "^5.20.0",
+    "exceljs": "^4.4.0"
   },
   "devDependencies": {
     "@fl/config": "workspace:*",

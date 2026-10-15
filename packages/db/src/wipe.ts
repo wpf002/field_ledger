@@ -35,6 +35,7 @@ export async function wipeFarm(prisma: PrismaClient, farmId: string) {
   await prisma.forecastAssumption.deleteMany({ where });
   await prisma.scenarioLever.deleteMany({ where });
   await prisma.insightReference.deleteMany({ where });
+  await prisma.herdFlowMonth.deleteMany({ where });
   await prisma.enterprise.deleteMany({ where: { farmId, parentId: { not: null } } });
   await prisma.enterprise.deleteMany({ where });
   await prisma.alert.deleteMany({ where });

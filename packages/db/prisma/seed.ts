@@ -13,6 +13,7 @@ import {
   Role,
 } from "../src/index.js";
 import { SCHEDULE_F, BALANCE_ACCOUNTS, type ScheduleFLine } from "@fl/core";
+import { importAllTestFarms } from "./import-testfarms.js";
 
 /** Income-statement section for a Schedule F category (mirrors the v2 migration backfill). */
 const sectionOf = (l: ScheduleFLine) =>
@@ -272,6 +273,9 @@ async function main() {
   await prisma.membership.create({ data: { userId: viewer.id, farmId: farm.id, role: Role.VIEWER } });
 
   console.log("Seeded demo farm:", farm.id, "+ River Bend Farm:", farm2.id, "+ users owner/viewer");
+
+  // --- Roadmap 2 test farms (data/testfarms/*.xlsx) ---
+  await importAllTestFarms();
 }
 
 main().then(() => prisma.$disconnect()).catch(async (e) => {

@@ -12,8 +12,10 @@ export interface ScheduleFLine {
   txf?: number;       // TXF (Tax Exchange Format) reference number for TurboTax/H&R Block import.
 }
 
-// TXF reference numbers per the TXF v042 standard (taxdataexchange.org). Depreciation
-// (F-14) has no Schedule F TXF code — it flows through Form 4562, so it's left unmapped.
+// Line numbers follow the current IRS Schedule F (Form 1040). TXF reference numbers per
+// the TXF v042 standard (taxdataexchange.org). Depreciation (F-14) has no Schedule F TXF
+// code; it flows through Form 4562. Lines without a verified TXF ref are left unmapped and
+// reported as such by the TXF export.
 export const SCHEDULE_F: Record<string, ScheduleFLine> = {
   livestock_sales_raised: { code: "livestock_sales_raised", line: "F-2",  label: "Sales of livestock/produce raised", kind: "income", txf: 368 },
   livestock_sales_bought: { code: "livestock_sales_bought", line: "F-1a", label: "Sales of purchased livestock", kind: "income", txf: 369 },
@@ -21,22 +23,30 @@ export const SCHEDULE_F: Record<string, ScheduleFLine> = {
   coop_distributions:     { code: "coop_distributions",     line: "F-3a", label: "Cooperative distributions",         kind: "income", txf: 371 },
   ag_program_payments:    { code: "ag_program_payments",    line: "F-4a", label: "Agricultural program payments",     kind: "income", txf: 372 },
   custom_hire_income:     { code: "custom_hire_income",     line: "F-7",  label: "Custom hire (machine work) income", kind: "income", txf: 370 },
+  crop_insurance_proceeds:{ code: "crop_insurance_proceeds",line: "F-6a", label: "Crop insurance proceeds",           kind: "income" },
   other_income:           { code: "other_income",           line: "F-8",  label: "Other income",                      kind: "income", txf: 377 },
 
-  feed:                   { code: "feed",                   line: "F-18", label: "Feed",                              kind: "expense", txf: 350 },
-  fertilizer:             { code: "fertilizer",             line: "F-19", label: "Fertilizer and lime",               kind: "expense", txf: 352 },
-  fuel:                   { code: "fuel",                   line: "F-20", label: "Gasoline, fuel, and oil",           kind: "expense", txf: 356 },
+  feed:                   { code: "feed",                   line: "F-16", label: "Feed",                              kind: "expense", txf: 350 },
+  fertilizer:             { code: "fertilizer",             line: "F-17", label: "Fertilizer and lime",               kind: "expense", txf: 352 },
+  fuel:                   { code: "fuel",                   line: "F-19", label: "Gasoline, fuel, and oil",           kind: "expense", txf: 356 },
   veterinary:             { code: "veterinary",             line: "F-31", label: "Veterinary, breeding, medicine",    kind: "expense", txf: 355 },
   seeds_plants:           { code: "seeds_plants",           line: "F-26", label: "Seeds and plants",                  kind: "expense", txf: 351 },
-  supplies:               { code: "supplies",               line: "F-27", label: "Supplies",                          kind: "expense", txf: 353 },
+  supplies:               { code: "supplies",               line: "F-28", label: "Supplies",                          kind: "expense", txf: 353 },
   repairs_maintenance:    { code: "repairs_maintenance",    line: "F-25", label: "Repairs and maintenance",           kind: "expense", txf: 345 },
   rent_lease_land:        { code: "rent_lease_land",        line: "F-24b",label: "Rent/lease (land, animals)",        kind: "expense", txf: 348 },
   rent_lease_equipment:   { code: "rent_lease_equipment",   line: "F-24a",label: "Rent/lease (vehicles, machinery)",  kind: "expense", txf: 349 },
   interest_mortgage:      { code: "interest_mortgage",      line: "F-21a",label: "Interest (mortgage)",               kind: "expense", txf: 346 },
   interest_other:         { code: "interest_other",         line: "F-21b",label: "Interest (other)",                  kind: "expense", txf: 347 },
   labor_hired:            { code: "labor_hired",            line: "F-22", label: "Labor hired",                       kind: "expense", txf: 344 },
-  insurance:              { code: "insurance",              line: "F-23", label: "Insurance (other than health)",     kind: "expense", txf: 359 },
+  insurance:              { code: "insurance",              line: "F-20", label: "Insurance (other than health)",     kind: "expense", txf: 359 },
   depreciation:           { code: "depreciation",           line: "F-14", label: "Depreciation / Section 179",        kind: "expense" },
+  car_truck:              { code: "car_truck",              line: "F-10", label: "Car and truck expenses",            kind: "expense" },
+  chemicals:              { code: "chemicals",              line: "F-11", label: "Chemicals",                         kind: "expense" },
+  custom_hire:            { code: "custom_hire",            line: "F-13", label: "Custom hire (machine work)",        kind: "expense" },
+  freight_trucking:       { code: "freight_trucking",       line: "F-18", label: "Freight and trucking",              kind: "expense" },
+  storage_warehousing:    { code: "storage_warehousing",    line: "F-27", label: "Storage and warehousing",           kind: "expense" },
+  taxes:                  { code: "taxes",                  line: "F-29", label: "Taxes",                             kind: "expense" },
+  utilities:              { code: "utilities",              line: "F-30", label: "Utilities",                         kind: "expense" },
   other_expense:          { code: "other_expense",          line: "F-32", label: "Other expenses",                    kind: "expense", txf: 365 },
 };
 

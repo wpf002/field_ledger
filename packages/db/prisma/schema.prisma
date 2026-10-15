@@ -73,6 +73,7 @@ model Farm {
   alertSettings       AlertSetting[]
   alertDismissals     AlertDismissal[]
   createdAt           DateTime             @default(now())
+  HerdFlowMonth       HerdFlowMonth[]
 }
 
 enum Role {
@@ -874,4 +875,29 @@ model InsightReference {
   recommendation String?
   keyMetrics     Json?
   sourceTables   String?
+}
+
+/// Monthly herd reconciliation by class. Class changes (calf -> heifer -> cow) are not
+/// recoverable from the animal registry alone, so the monthly roll is stored as a record.
+model HerdFlowMonth {
+  id           String   @id @default(uuid())
+  farm         Farm     @relation(fields: [farmId], references: [id])
+  farmId       String
+  monthEnd     DateTime
+  species      String
+  animalClass  String
+  category     String?
+  opening      Int
+  births       Int      @default(0)
+  purchases    Int      @default(0)
+  transfersIn  Int      @default(0)
+  transfersOut Int      @default(0)
+  deaths       Int      @default(0)
+  cullsSold    Int      @default(0)
+  sales        Int      @default(0)
+  processed    Int      @default(0)
+  householdUse Int      @default(0)
+  ending       Int
+
+  @@index([farmId, monthEnd])
 }
