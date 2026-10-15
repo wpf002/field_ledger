@@ -119,7 +119,7 @@ export function SidebarNav({ user, role, farms, currentFarmId, plan = "business"
 
       <nav className="flex-1 overflow-y-auto px-3 py-3">
         {NAV.map(({ group, items }, gi) => (
-          <div key={gi} className={gi ? "mt-3" : ""}>
+          <div key={gi} className={gi ? (group ? "mt-3" : "mt-0.5") : ""}>
             {group && (
               <button onClick={() => toggle(group)} aria-expanded={!collapsed[group]}
                 className="flex w-full items-center justify-between rounded-btn px-4 pb-1 pt-0.5 text-[11px] font-medium uppercase tracking-wider text-muted/80 hover:text-ink">
