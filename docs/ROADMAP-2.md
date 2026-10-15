@@ -177,6 +177,15 @@ Each requires a developer account and keys from the provider.
   direct-to-consumer farms.
 - All sources translate into the Phase 9 core objects.
 
+**Status (Phases 17-18):** connector framework, encrypted tokens, sync runs, and the
+mapping layer are built and unit-tested against documented payloads. QuickBooks,
+Plaid, Square, Stripe, Xero, FreshBooks, and USDA NASS switch on when their
+credentials are set (see `/integrations`); they have not been run against live
+accounts. Working today without credentials: generic CSV import (customers,
+vendors, invoices, bills, animals incl. CattleMax exports), the Zapier/webhook
+connector (Farmbrite via Zapier), and the NWS forecast. AgriWebb, Agworld, and
+Farmbrite's direct API need partner access.
+
 ## Phase 18 — Integrations, tier 2 (agricultural data)
 
 - Farmbrite, AgriWebb, CattleMax (partner access first), Agworld.

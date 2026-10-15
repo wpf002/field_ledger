@@ -7,7 +7,7 @@ import { registerHealth } from "./routes/health.js";
 import { registerTransactions } from "./routes/transactions.js";
 import { registerRecords } from "./routes/records.js";
 import { registerFarm } from "./routes/farm.js";
-import { registerImport } from "./routes/import.js";
+import { registerImport, registerTableImport } from "./routes/import.js";
 import { registerReconcile } from "./routes/reconcile.js";
 import { registerValuation } from "./routes/valuation.js";
 import { registerObligations } from "./routes/obligations.js";
@@ -16,6 +16,7 @@ import { registerPlanning } from "./routes/planning.js";
 import { registerReports } from "./routes/reports.js";
 import { registerInvoices } from "./routes/invoices.js";
 import { registerAssistant } from "./routes/assistant.js";
+import { registerIntegrations } from "./routes/integrations.js";
 import { bigintReplySerializer } from "./plugins/bigint-serializer.js";
 import { verifyToken, tokenFromRequest, roleForFarm } from "./lib/session.js";
 
@@ -51,6 +52,7 @@ await registerFarm(app);
 await registerTransactions(app);
 await registerRecords(app);
 await registerImport(app);
+await registerTableImport(app);
 await registerReconcile(app);
 await registerValuation(app);
 await registerObligations(app);
@@ -59,6 +61,7 @@ await registerPlanning(app);
 await registerReports(app);
 await registerInvoices(app);
 await registerAssistant(app);
+await registerIntegrations(app);
 
 // Railway (and most PaaS) inject the port to bind on via PORT.
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);

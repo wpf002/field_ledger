@@ -4,21 +4,43 @@
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@fl/web", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@fl/web",
+        "dev"
+      ],
       "port": 3000,
       "autoPort": false
     },
     {
       "name": "api-alt",
       "runtimeExecutable": "env",
-      "runtimeArgs": ["PORT=4100", "WEB_ORIGIN=http://localhost:3200", "pnpm", "--filter", "@fl/api", "dev"],
+      "runtimeArgs": [
+        "PORT=4100",
+        "WEB_ORIGIN=http://localhost:3200",
+        "PUBLIC_WEB_URL=http://localhost:3200",
+        "pnpm",
+        "--filter",
+        "@fl/api",
+        "dev"
+      ],
       "port": 4100,
       "autoPort": false
     },
     {
       "name": "web-alt",
       "runtimeExecutable": "env",
-      "runtimeArgs": ["API_URL=http://localhost:4100", "pnpm", "--filter", "@fl/web", "exec", "next", "dev", "-p", "3200"],
+      "runtimeArgs": [
+        "API_URL=http://localhost:4100",
+        "pnpm",
+        "--filter",
+        "@fl/web",
+        "exec",
+        "next",
+        "dev",
+        "-p",
+        "3200"
+      ],
       "port": 3200,
       "autoPort": false
     }

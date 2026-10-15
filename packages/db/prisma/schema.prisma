@@ -79,6 +79,7 @@ model Farm {
   EnterpriseUnitCount   EnterpriseUnitCount[]
   ForecastSetting       ForecastSetting?
   ForecastRun           ForecastRun[]
+  Connection            Connection[]
 }
 
 enum Role {
@@ -955,4 +956,36 @@ model ForecastRun {
   createdAt DateTime @default(now())
 
   @@index([farmId, asOf])
+}
+
+/// A connected outside system (QuickBooks, Plaid, Square, ...). Tokens are encrypted at rest.
+model Connection {
+  id                String    @id @default(uuid())
+  farm              Farm      @relation(fields: [farmId], references: [id])
+  farmId            String
+  provider          String // quickbooks | plaid | square | stripe | xero | freshbooks | usda_nass | nws | ...
+  status            String    @default("connected") // connected | error | disconnected
+  externalAccountId String? // realmId, Plaid item_id, Xero tenantId, ...
+  label             String?
+  accessTokenEnc    String?
+  refreshTokenEnc   String?
+  expiresAt         DateTime?
+  cursor            Json? // provider sync cursor / last-synced markers
+  lastSyncAt        DateTime?
+  lastError         String?
+  createdAt         DateTime  @default(now())
+  syncRuns          SyncRun[]
+
+  @@index([farmId, provider])
+}
+
+model SyncRun {
+  id           String     @id @default(uuid())
+  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connectionId String
+  startedAt    DateTime   @default(now())
+  finishedAt   DateTime?
+  status       String     @default("running") // running | ok | error
+  counts       Json?
+  error        String?
 }

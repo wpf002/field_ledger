@@ -19,3 +19,4 @@ export { generateInsights, type Insight, type Severity } from "./insights.js";
 export { forecastContext, SCENARIO_KEYS, type ForecastContext } from "./forecast-context.js";
 export { runWhatIf, type WhatIf, type Outcome } from "./whatif.js";
 export { generateBrief, type Brief, type BriefLine } from "./brief.js";
+export { applyExternalBatch, sealToken, openToken } from "./ingest.js";

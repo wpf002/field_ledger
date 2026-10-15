@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@fl/db";
 import { z } from "zod";
-import { buildPreview, dedupeHash, deserializeCents, normalizeDesc, type ParsedRow } from "@fl/core";
+import { buildPreview, dedupeHash, deserializeCents, normalizeDesc, IMPORT_TABLES, parseMoney, normalizeDate, type ParsedRow } from "@fl/core";
 
 const isoOf = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -112,5 +112,71 @@ export async function registerImport(app: FastifyInstance) {
 
     await prisma.importBatch.update({ where: { id: batch.id }, data: { importedCount: imported, duplicateCount: duplicates } });
     return reply.code(201).send({ batchId: batch.id, imported, duplicates, skipped });
+  });
+}
+
+// ---------- Generic table import (Roadmap 2, Phase 17) ----------
+
+const tableBody = z.object({ table: z.string(), rows: z.array(z.record(z.string(), z.string())).max(20_000), filename: z.string().optional() });
+
+export async function registerTableImport(app: FastifyInstance) {
+  app.get("/import/tables", async () => IMPORT_TABLES);
+
+  /** Rows arrive already mapped to field keys. Upserts on the table's ID field. */
+  app.post("/farms/:farmId/import/table", async (req, reply) => {
+    const { farmId } = req.params as { farmId: string };
+    const parsed = tableBody.safeParse(req.body);
+    if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const table = IMPORT_TABLES.find((t) => t.key === parsed.data.table);
+    if (!table) return reply.badRequest("Unknown table");
+    const errors: string[] = [];
+    let created = 0, updated = 0;
+    const date = (v?: string) => (v ? new Date(`${normalizeDate(v)}T00:00:00Z`) : null);
+    const ext = (v: string) => `csv:${table.key}:${v.trim().toLowerCase()}`;
+    const customerFor = async (name: string) => (await prisma.customer.upsert({ where: { farmId_externalId: { farmId, externalId: `csv:customers:${name.trim().toLowerCase()}` } }, create: { farmId, externalId: `csv:customers:${name.trim().toLowerCase()}`, name: name.trim() }, update: {} })).id;
+    const vendorFor = async (name: string) => (await prisma.vendor.upsert({ where: { farmId_externalId: { farmId, externalId: `csv:vendors:${name.trim().toLowerCase()}` } }, create: { farmId, externalId: `csv:vendors:${name.trim().toLowerCase()}`, name: name.trim() }, update: {} })).id;
+
+    for (const [i, r] of parsed.data.rows.entries()) {
+      try {
+        for (const fld of table.fields) if (fld.required && !r[fld.key]?.trim()) throw new Error(`${fld.label} is required`);
+        if (table.key === "customers" || table.key === "vendors") {
+          const key = ext(r.id || r.name!);
+          const data = { name: r.name!.trim(), paymentTermsDays: r.terms ? Number(r.terms) || null : null };
+          const model = table.key === "customers" ? prisma.customer : prisma.vendor;
+          const found = await (model as typeof prisma.customer).findUnique({ where: { farmId_externalId: { farmId, externalId: key } } });
+          if (table.key === "customers") await prisma.customer.upsert({ where: { farmId_externalId: { farmId, externalId: key } }, create: { farmId, externalId: key, email: r.email || null, ...data }, update: { email: r.email || undefined, ...data } });
+          else await prisma.vendor.upsert({ where: { farmId_externalId: { farmId, externalId: key } }, create: { farmId, externalId: key, category: r.category || null, ...data }, update: { category: r.category || undefined, ...data } });
+          found ? updated++ : created++;
+        } else if (table.key === "invoices") {
+          const total = parseMoney(r.total)!, balance = parseMoney(r.balance) ?? total;
+          const issued = date(r.issued)!, due = date(r.due) ?? issued;
+          const existing = await prisma.invoice.findUnique({ where: { farmId_number: { farmId, number: r.number!.trim() } } });
+          const data = { totalCents: total, amountPaidCents: total - balance, status: (balance === 0n ? "PAID" : "SENT") as "PAID" | "SENT", dueAt: due, description: r.description || null };
+          if (existing) { await prisma.invoice.update({ where: { id: existing.id }, data }); updated++; }
+          else { await prisma.invoice.create({ data: { farmId, number: r.number!.trim(), externalId: ext(r.number!), customerId: await customerFor(r.customer!), issuedAt: issued, ...data, lineItems: { create: [{ description: r.description || r.number!, quantity: 1, unitCents: total, amountCents: total }] } } }); created++; }
+        } else if (table.key === "bills") {
+          const total = parseMoney(r.total)!, balance = parseMoney(r.balance) ?? total;
+          const billDate = date(r.billDate)!, due = date(r.due) ?? billDate;
+          const existing = await prisma.bill.findUnique({ where: { farmId_number: { farmId, number: r.number!.trim() } } });
+          const data = { amountCents: total, amountPaidCents: total - balance, status: balance === 0n ? "Paid" : "Open", dueDate: due, category: r.category || null, description: r.description || null };
+          if (existing) { await prisma.bill.update({ where: { id: existing.id }, data }); updated++; }
+          else { await prisma.bill.create({ data: { farmId, number: r.number!.trim(), vendorId: await vendorFor(r.vendor!), billDate, ...data } }); created++; }
+        } else if (table.key === "animals") {
+          const tag = r.tag!.trim();
+          const data = {
+            species: r.species?.trim() || "Cattle", sex: r.sex || null, breed: r.breed || null, nameOrTag: r.name || tag, birthDate: date(r.birthDate), damId: r.dam || null, sireId: r.sire || null,
+            status: r.status || null, currentClass: r.class || null, weaningWeightLb: r.weaningWeight ? Number(r.weaningWeight) : null, saleWeightLb: r.saleWeight ? Number(r.saleWeight) : null,
+            salePriceCents: parseMoney(r.salePrice), dispositionDate: date(r.dispositionDate), origin: "import",
+          };
+          const existing = await prisma.animal.findUnique({ where: { farmId_externalId: { farmId, externalId: tag } } });
+          await prisma.animal.upsert({ where: { farmId_externalId: { farmId, externalId: tag } }, create: { farmId, externalId: tag, ...data }, update: data });
+          existing ? updated++ : created++;
+        }
+      } catch (e) {
+        if (errors.length < 50) errors.push(`Row ${i + 2}: ${e instanceof Error ? e.message : "invalid"}`);
+      }
+    }
+    await prisma.auditLog.create({ data: { farmId, action: "import", entity: table.label, entityId: parsed.data.filename ?? "csv", after: { created, updated, errors: errors.length } } });
+    return { created, updated, errors };
   });
 }

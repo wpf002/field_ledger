@@ -16,3 +16,5 @@ export * from "./ratios.js";
 export * from "./enterprise.js";
 export * from "./cashforecast.js";
 export * from "./decisions.js";
+export * from "./integrations.js";
+export * from "./table-import.js";

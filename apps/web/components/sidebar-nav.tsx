@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
-  LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText, FileSpreadsheet, ReceiptText, Landmark, HeartPulse, Layers, Beef, Map as MapIcon, LineChart, Cog, GitBranch,
+  LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText, FileSpreadsheet, ReceiptText, Landmark, HeartPulse, Layers, Beef, Map as MapIcon, LineChart, Cog, GitBranch, Plug,
   PieChart, TrendingUp, Calendar, MessageSquare, UserCircle2, LogOut, Check, ChevronsUpDown, Eye, Menu, X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -37,7 +37,10 @@ const NAV = [
     { href: "/planning", label: "Planning", icon: Calendar },
     { href: "/insights", label: "Insights", icon: TrendingUp },
   ] },
-  { group: null, items: [{ href: "/assistant", label: "AI Assistant", icon: MessageSquare }] },
+  { group: null, items: [
+    { href: "/assistant", label: "AI Assistant", icon: MessageSquare },
+    { href: "/integrations", label: "Integrations", icon: Plug },
+  ] },
 ];
 
 type Farm = { id: string; name: string };
