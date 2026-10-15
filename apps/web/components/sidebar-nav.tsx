@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
-  LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText,
+  LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText, FileSpreadsheet, ReceiptText, Landmark,
   PieChart, TrendingUp, Calendar, MessageSquare, UserCircle2, LogOut, Check, ChevronsUpDown, Eye, Menu, X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -12,16 +12,25 @@ import { BrandMark } from "@/components/ui/brand-mark";
 import { logout, switchFarm } from "@/app/login/actions";
 
 const NAV = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/transactions", label: "Transactions", icon: Receipt },
-  { href: "/revenue", label: "Revenue", icon: DollarSign },
-  { href: "/inventory", label: "Inventory", icon: Tractor },
-  { href: "/liabilities", label: "Liabilities", icon: Wallet },
-  { href: "/leases", label: "Leases", icon: ScrollText },
-  { href: "/budgets", label: "Budgets", icon: PieChart },
-  { href: "/insights", label: "Insights", icon: TrendingUp },
-  { href: "/planning", label: "Planning", icon: Calendar },
-  { href: "/assistant", label: "AI Assistant", icon: MessageSquare },
+  { group: null, items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }] },
+  { group: "Books", items: [
+    { href: "/transactions", label: "Transactions", icon: Receipt },
+    { href: "/revenue", label: "Revenue", icon: DollarSign },
+    { href: "/payables", label: "Payables", icon: ReceiptText },
+    { href: "/statements", label: "Statements", icon: FileSpreadsheet },
+    { href: "/reports", label: "Tax & Reports", icon: Landmark },
+  ] },
+  { group: "Operation", items: [
+    { href: "/inventory", label: "Inventory", icon: Tractor },
+    { href: "/liabilities", label: "Liabilities", icon: Wallet },
+    { href: "/leases", label: "Leases", icon: ScrollText },
+  ] },
+  { group: "Plan", items: [
+    { href: "/budgets", label: "Budgets", icon: PieChart },
+    { href: "/planning", label: "Planning", icon: Calendar },
+    { href: "/insights", label: "Insights", icon: TrendingUp },
+  ] },
+  { group: null, items: [{ href: "/assistant", label: "AI Assistant", icon: MessageSquare }] },
 ];
 
 type Farm = { id: string; name: string };
@@ -86,17 +95,24 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const active = href === "/" ? path === "/" : path.startsWith(href);
-          return (
-            <Link key={href} href={href}
-              className={clsx("flex items-center gap-3 rounded-btn px-4 py-2.5 text-[15px] transition-colors", active ? "bg-primary text-white" : "text-muted hover:bg-tag/60")}>
-              <Icon size={20} strokeWidth={1.75} />
-              <span className={active ? "font-medium" : ""}>{label}</span>
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto px-3 py-3">
+        {NAV.map(({ group, items }, gi) => (
+          <div key={gi} className={gi ? "mt-3" : ""}>
+            {group && <p className="px-4 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted/80">{group}</p>}
+            <div className="space-y-0.5">
+              {items.map(({ href, label, icon: Icon }) => {
+                const active = href === "/" ? path === "/" : path.startsWith(href);
+                return (
+                  <Link key={href} href={href}
+                    className={clsx("flex items-center gap-3 rounded-btn px-4 py-2 text-[15px] transition-colors", active ? "bg-primary text-white" : "text-muted hover:bg-tag/60")}>
+                    <Icon size={19} strokeWidth={1.75} />
+                    <span className={active ? "font-medium" : ""}>{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       <div className="border-t border-border px-3 py-3">

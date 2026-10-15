@@ -15,3 +15,16 @@ export async function getReports(farmId: string, year: number) {
     locked: period?.locked ?? false,
   };
 }
+
+/** Years with ledger activity, newest first (falls back to the current year). */
+export async function getReportYears(farmId: string) {
+  const [first, last] = await Promise.all([
+    prisma.transaction.findFirst({ where: { farmId }, orderBy: { date: "asc" }, select: { date: true } }),
+    prisma.transaction.findFirst({ where: { farmId, entryType: "ledger" }, orderBy: { date: "desc" }, select: { date: true } }),
+  ]);
+  const now = new Date().getUTCFullYear();
+  const from = first?.date.getUTCFullYear() ?? now, to = Math.min(last?.date.getUTCFullYear() ?? now, now);
+  const years: number[] = [];
+  for (let y = to; y >= from; y--) years.push(y);
+  return { years: years.length ? years : [now] };
+}

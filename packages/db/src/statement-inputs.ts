@@ -7,7 +7,7 @@ export async function loadStatementInputs(prisma: PrismaClient, farmId: string):
     prisma.farm.findUniqueOrThrow({ where: { id: farmId }, select: { reportCutoff: true } }),
     prisma.transaction.findMany({
       where: { farmId },
-      select: { date: true, cashDate: true, amountCents: true, cashEffectCents: true, paymentMethod: true, enterpriseId: true, account: { select: { code: true, section: true } } },
+      select: { date: true, cashDate: true, amountCents: true, cashEffectCents: true, paymentMethod: true, enterpriseId: true, account: { select: { code: true, label: true, section: true, cashFlowClass: true, statementLine: true } } },
     }),
     prisma.inventorySnapshot.findMany({ where: { farmId }, select: { asOf: true, category: true, bsValuation: true, costBasisCents: true, marketValueCents: true } }),
     prisma.asset.findMany({ where: { farmId }, select: { category: true, purchasedAt: true, originalCostCents: true, salvageCents: true, usefulLifeYears: true, disposedAt: true, estCurrentValueCents: true } }),
@@ -17,7 +17,7 @@ export async function loadStatementInputs(prisma: PrismaClient, farmId: string):
   const ob = (line: string) => opening.find((o) => o.line === line);
   const rows: StatementRow[] = txns.map((x) => ({
     date: x.date, cashDate: x.cashDate, amountCents: x.amountCents, cashEffectCents: x.cashEffectCents,
-    section: x.account.section, accountCode: x.account.code, paymentMethod: x.paymentMethod, enterpriseId: x.enterpriseId,
+    section: x.account.section, accountCode: x.account.code, paymentMethod: x.paymentMethod, enterpriseId: x.enterpriseId, cashFlowClass: x.account.cashFlowClass ?? defaultCashClass(x.account.section), statementLine: x.account.statementLine ?? x.account.label,
   }));
   // Farms without imported opening balances start their books at the first transaction.
   const firstDate = txns.reduce<Date | null>((min, x) => (!min || x.date < min ? x.date : min), null);
@@ -40,4 +40,9 @@ export async function loadStatementInputs(prisma: PrismaClient, farmId: string):
       operatingLineCents: ob("operating_line")?.amountCents ?? 0n,
     },
   };
+}
+
+/** Cash-flow class for charts of accounts that don't carry one (Schedule F starter chart). */
+function defaultCashClass(section: string) {
+  return section === "REV" ? "Customer collections" : section === "INT" ? "Debt payments - interest" : "Other operating payments";
 }

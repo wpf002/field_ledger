@@ -7,7 +7,8 @@ import { InvoiceActions } from "@/components/invoice-actions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { prisma, pnlWhere } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
-import { sumCents } from "@fl/core";
+import { sumCents, agingSummary, AGING_BUCKETS } from "@fl/core";
+import { getStatementContext } from "@/lib/statements";
 import { fmtDate } from "@/lib/format";
 import { DollarSign, FileText, TrendingUp, FileWarning, Mail } from "lucide-react";
 
@@ -25,23 +26,30 @@ export const dynamic = "force-dynamic";
 export default async function RevenuePage() {
   const farmId = await getDemoFarmId();
   const [txns, invoices, customers] = await Promise.all([
-    prisma.transaction.findMany({ where: { farmId, ...pnlWhere } }),
-    prisma.invoice.findMany({ where: { farmId }, include: { customer: true }, orderBy: { number: "desc" } }),
+    prisma.transaction.findMany({ where: { farmId, ...pnlWhere, account: { section: "REV" } } }),
+    prisma.invoice.findMany({ where: { farmId }, include: { customer: true }, orderBy: [{ issuedAt: "desc" }, { number: "desc" }] }),
     prisma.customer.findMany({ where: { farmId }, include: { invoices: true }, orderBy: { name: "asc" } }),
   ]);
 
   const totalRevenue = sumCents(txns.filter((t) => t.amountCents > 0n).map((t) => t.amountCents));
   const invoiced = sumCents(invoices.map((i) => i.totalCents));
   const paid = sumCents(invoices.filter((i) => i.status === "PAID").map((i) => i.totalCents));
-  const outstanding = sumCents(invoices.filter((i) => i.status === "SENT" || i.status === "OVERDUE").map((i) => i.totalCents));
+  const open = invoices.filter((i) => i.status === "SENT" || i.status === "OVERDUE");
+  const outstanding = sumCents(open.map((i) => i.totalCents - i.amountPaidCents));
+  const { asOf } = await getStatementContext(farmId);
+  const aging = agingSummary(open.map((i) => ({ dueDate: i.dueAt, balanceCents: i.totalCents - i.amountPaidCents })), asOf);
+  // Open invoices first, then the most recent paid ones.
+  const LIST_LIMIT = 50;
+  const listed = [...open, ...invoices.filter((i) => !open.includes(i))].slice(0, LIST_LIMIT);
   const paidCount = invoices.filter((i) => i.status === "PAID").length;
 
   const invoiceList = invoices.length === 0 ? (
     <EmptyState icon={<FileText size={22} />} title="No invoices yet" hint="Create an invoice to bill a customer and track payments here." />
   ) : (
     <div className="space-y-4">
-      {invoices.map((inv) => {
-        const overdue = inv.status === "SENT" && inv.dueAt < new Date();
+      {invoices.length > LIST_LIMIT && <p className="text-xs text-muted">Showing {LIST_LIMIT} of {invoices.length}</p>}
+      {listed.map((inv) => {
+        const overdue = inv.status === "SENT" && inv.dueAt < asOf;
         const display = overdue ? "OVERDUE" : inv.status;
         return (
         <Card key={inv.id} className="p-5">
@@ -85,14 +93,25 @@ export default async function RevenuePage() {
 
   return (
     <>
-      <PageHeader title="Revenue Management" subtitle="Track income, manage invoices, and maintain customer relationships." />
+      <PageHeader title="Revenue" />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
         <StatCard label="Total Revenue" value={<Money cents={totalRevenue} />} sub="All recorded income" icon={<DollarSign size={18} className="text-muted" />} />
         <StatCard label="Invoiced" value={<Money cents={invoiced} />} sub={`${invoices.length} total invoice${invoices.length === 1 ? "" : "s"}`} icon={<FileText size={18} className="text-muted" />} />
         <StatCard label="Paid" value={<Money cents={paid} />} sub={`${paidCount} paid invoice${paidCount === 1 ? "" : "s"}`} variant="mint" icon={<TrendingUp size={18} className="text-positive" />} />
         <StatCard label="Outstanding" value={<Money cents={outstanding} className="text-rust" />} sub="Awaiting payment" variant="cream" icon={<FileWarning size={18} className="text-rust" />} />
       </div>
+
+      {open.length > 0 && (
+        <Card className="mt-5 grid grid-cols-2 gap-4 p-5 sm:grid-cols-5">
+          {AGING_BUCKETS.map((b) => (
+            <div key={b}>
+              <p className="text-xs uppercase tracking-wider text-muted">{b === "Current" ? "Current" : `${b} Days`}</p>
+              <p className={`mt-1 text-lg font-bold ${b !== "Current" && aging[b] > 0n ? "text-rust" : "text-ink"}`}><Money cents={aging[b]} /></p>
+            </div>
+          ))}
+        </Card>
+      )}
 
       <RevenueTabs invoices={invoiceList} customers={customerList} />
     </>

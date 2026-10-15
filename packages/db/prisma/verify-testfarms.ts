@@ -1,7 +1,7 @@
 import "./load-env.js"; // must be first — loads root .env before Prisma client
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { balanceSheetAt, incomeStatement, type BalanceSheet, type IncomeStatement } from "@fl/core";
+import { balanceSheetAt, cashFlowReport, incomeStatement, type BalanceSheet, type IncomeStatement } from "@fl/core";
 import { prisma } from "../src/index.js";
 import { loadStatementInputs } from "../src/statement-inputs.js";
 import { readWorkbook, toCents, toDate, type Row } from "../src/testfarms/workbook.js";
@@ -79,6 +79,23 @@ async function verifyFarm(file: string): Promise<Result[]> {
   }
   results.push(bsRes);
 
+  // Historical cash flow by class, every month.
+  const cfRes: Result = { check: "Cash flow by class (monthly)", compared: 0, failures: [] };
+  for (const row of tables.CF_Monthly!) {
+    const to = toDate(row.month_end)!;
+    const from = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 0));
+    const cf = cashFlowReport(inputs.rows, inputs.opening, from, to);
+    const lines = new Map(cf.sections.flatMap((x) => x.lines).map((l) => [l.cashFlowClass, l.cents]));
+    const key = to.toISOString().slice(0, 7);
+    cmp(cfRes, `${key} beginning cash`, toCents(row.beginning_cash), cf.beginningCashCents);
+    cmp(cfRes, `${key} ending cash`, toCents(row.ending_cash), cf.endingCashCents);
+    for (const [k, v] of Object.entries(row)) {
+      if (["business_id", "month_end", "beginning_cash", "net_cash_flow", "ending_cash", "operating_line_balance"].includes(k)) continue;
+      cmp(cfRes, `${key} ${k}`, toCents(v), lines.get(k) ?? 0n);
+    }
+  }
+  results.push(cfRes);
+
   // Sub-ledgers at the cutoff.
   const subRes: Result = { check: "AR, debt, herd flow", compared: 0, failures: [] };
   const cutoff = inputs.cutoff!;
@@ -86,6 +103,8 @@ async function verifyFarm(file: string): Promise<Result[]> {
   const invoices = await prisma.invoice.findMany({ where: { farmId: farm.id } });
   const openAr = invoices.reduce((s, i) => s + i.totalCents - i.amountPaidCents, 0n);
   cmp(subRes, "open AR invoices vs BS AR", openAr, bsCut.arCents);
+  const bills = await prisma.bill.findMany({ where: { farmId: farm.id } });
+  cmp(subRes, "open AP bills vs BS AP", bills.reduce((s, b) => s + b.amountCents - b.amountPaidCents, 0n), bsCut.apCents);
   const loans = await prisma.liability.findMany({ where: { farmId: farm.id } });
   cmp(subRes, "loan principal vs BS debt", loans.reduce((s, l) => s + l.balanceCents, 0n),
     bsCut.operatingLineCents + bsCut.currentPortionCents + bsCut.landLoansCents + bsCut.equipmentLoansCents + bsCut.vehicleLoansCents + bsCut.otherTermDebtCents);

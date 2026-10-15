@@ -18,6 +18,8 @@ export type StatementRow = {
   accountCode: string;
   paymentMethod?: string | null;
   enterpriseId?: string | null;
+  cashFlowClass?: string | null;
+  statementLine?: string | null;
 };
 
 export type InventorySnap = { asOf: Date; category: string; bsValuation: string; costBasisCents: bigint; marketValueCents: bigint };
@@ -61,6 +63,18 @@ export function incomeStatement(rows: StatementRow[], from: Date, to: Date): Inc
     inventoryChangeCents, livestockChangeCents, netFarmIncomeCents: netIncomeOperatingCents + inventoryChangeCents + livestockChangeCents,
     transfersCents: g("XFER"),
   };
+}
+
+/** Totals by statement line within one section (costs reported positive). */
+export function lineDetail(rows: StatementRow[], section: string, from: Date, to: Date): { line: string; cents: bigint }[] {
+  const sign = section === "REV" || section === "GAIN" || section === "INVCHG" || section === "LVCHG" ? 1n : -1n;
+  const by = new Map<string, bigint>();
+  for (const r of rows) {
+    if (r.section !== section || t(r.date) <= t(from) || t(r.date) > t(to)) continue;
+    const k = r.statementLine || "Other";
+    by.set(k, (by.get(k) ?? 0n) + r.amountCents * sign);
+  }
+  return [...by.entries()].map(([line, cents]) => ({ line, cents })).sort((a, b) => (a.cents > b.cents ? -1 : a.cents < b.cents ? 1 : 0));
 }
 
 // ---------- fixed assets ----------
@@ -238,5 +252,87 @@ export function monthEnds(from: Date, to: Date): Date[] {
     if (t(d) >= t(from)) out.push(d);
     mo++; if (mo === 12) { mo = 0; y++; }
   }
+  return out;
+}
+
+// ---------- historical cash flow ----------
+export type CashSection = "Operating" | "Investing" | "Financing";
+const INVESTING = new Set(["Equipment & capital purchases", "Asset sale proceeds"]);
+const FINANCING = new Set([
+  "Loan proceeds", "Debt payments - principal", "Operating line draws", "Operating line repayments",
+  "Owner contributions", "Owner distributions", "Taxes (owner estimated income tax)",
+]);
+/** Interest stays in operating cash flow (US GAAP). */
+export const cashSectionOf = (cashFlowClass: string): CashSection =>
+  INVESTING.has(cashFlowClass) ? "Investing" : FINANCING.has(cashFlowClass) ? "Financing" : "Operating";
+
+export type CashFlowLine = { cashFlowClass: string; section: CashSection; cents: bigint };
+export type CashFlowReport = {
+  beginningCashCents: bigint; endingCashCents: bigint; netCents: bigint;
+  sections: { section: CashSection; lines: CashFlowLine[]; totalCents: bigint }[];
+};
+
+/** Cash moved with from < cashDate <= to, grouped by cash-flow class and section. */
+export function cashFlowReport(rows: StatementRow[], opening: Opening, from: Date, to: Date): CashFlowReport {
+  let beginning = opening.cashCents;
+  const by = new Map<string, bigint>();
+  for (const r of rows) {
+    if (!r.cashDate || r.cashEffectCents == null || t(r.cashDate) <= t(opening.asOf)) continue;
+    const c = t(r.cashDate);
+    if (c <= t(from)) beginning += r.cashEffectCents;
+    else if (c <= t(to)) {
+      const k = r.cashFlowClass || "Other";
+      by.set(k, (by.get(k) ?? 0n) + r.cashEffectCents);
+    }
+  }
+  const order: CashSection[] = ["Operating", "Investing", "Financing"];
+  const sections = order.map((section) => {
+    const lines = [...by.entries()].filter(([k]) => cashSectionOf(k) === section).map(([k, cents]) => ({ cashFlowClass: k, section, cents }))
+      .sort((a, b) => (a.cents > b.cents ? -1 : a.cents < b.cents ? 1 : 0));
+    return { section, lines, totalCents: sum(lines.map((l) => l.cents)) };
+  });
+  const net = sum(sections.map((x) => x.totalCents));
+  return { beginningCashCents: beginning, endingCashCents: beginning + net, netCents: net, sections };
+}
+
+// ---------- periods ----------
+export type PeriodKind = "month" | "quarter" | "year" | "ytd" | "ttm";
+export type Period = { kind: PeriodKind; from: Date; to: Date; label: string }; // from exclusive, to inclusive
+
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const monthEnd = (y: number, m: number) => new Date(Date.UTC(y, m + 1, 0));
+
+/** Period ending at the month containing `anchor`. */
+export function periodFor(kind: PeriodKind, anchor: Date): Period {
+  const y = anchor.getUTCFullYear(), m = anchor.getUTCMonth();
+  const to = monthEnd(y, m);
+  switch (kind) {
+    case "month": return { kind, from: monthEnd(y, m - 1), to, label: `${MONTH_ABBR[m]} ${y}` };
+    case "quarter": { const q = Math.floor(m / 3); return { kind, from: monthEnd(y, q * 3 - 1), to: monthEnd(y, q * 3 + 2), label: `Q${q + 1} ${y}` }; }
+    case "year": return { kind, from: monthEnd(y - 1, 11), to: monthEnd(y, 11), label: `${y}` };
+    case "ytd": return { kind, from: monthEnd(y - 1, 11), to, label: `YTD ${MONTH_ABBR[m]} ${y}` };
+    case "ttm": return { kind, from: monthEnd(y - 1, m), to, label: `TTM ${MONTH_ABBR[m]} ${y}` };
+  }
+}
+/** The period immediately before. YTD and TTM step back a year. */
+export function priorPeriod(p: Period): Period {
+  const back = p.kind === "month" ? 1 : p.kind === "quarter" ? 3 : 12;
+  return periodFor(p.kind, new Date(Date.UTC(p.to.getUTCFullYear(), p.to.getUTCMonth() - back, 1)));
+}
+/** Same period one year earlier. */
+export function priorYearPeriod(p: Period): Period {
+  return periodFor(p.kind, new Date(Date.UTC(p.to.getUTCFullYear() - 1, p.to.getUTCMonth(), 1)));
+}
+
+// ---------- aging ----------
+export const AGING_BUCKETS = ["Current", "1-30", "31-60", "61-90", "90+"] as const;
+export type AgingBucket = (typeof AGING_BUCKETS)[number];
+export function agingBucket(dueDate: Date, asOf: Date): AgingBucket {
+  const days = Math.floor((t(asOf) - t(dueDate)) / 86_400_000);
+  return days <= 0 ? "Current" : days <= 30 ? "1-30" : days <= 60 ? "31-60" : days <= 90 ? "61-90" : "90+";
+}
+export function agingSummary(items: { dueDate: Date; balanceCents: bigint }[], asOf: Date): Record<AgingBucket, bigint> {
+  const out = Object.fromEntries(AGING_BUCKETS.map((b) => [b, 0n])) as Record<AgingBucket, bigint>;
+  for (const i of items) if (i.balanceCents !== 0n) out[agingBucket(i.dueDate, asOf)] += i.balanceCents;
   return out;
 }
