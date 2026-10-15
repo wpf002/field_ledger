@@ -4,7 +4,7 @@ import { Card, SectionHeading } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { getDemoFarmId } from "@/lib/data";
 import { getReports, getReportYears } from "@/lib/reports";
-import { Receipt, Tractor, Download, Lock, ArrowLeft, Landmark, FileDown, Printer } from "lucide-react";
+import { Receipt, Download, Lock, ArrowLeft, Landmark, FileDown, Printer } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ye
   const farmId = await getDemoFarmId();
   const { years } = await getReportYears(farmId);
   const year = years.includes(Number(searchParams.year)) ? Number(searchParams.year) : years[0]!;
-  const { scheduleF, enterprises, locked } = await getReports(farmId, year);
+  const { scheduleF, locked } = await getReports(farmId, year);
   const YEARS = years;
 
   return (
@@ -69,7 +69,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ye
         <p className="mt-3 text-xs text-muted">In TurboTax or H&amp;R Block desktop, import the <span className="font-medium text-ink">.txf</span> via <span className="font-medium text-ink">File → Import → From Accounting Software</span>. Depreciation is entered separately through your software&rsquo;s asset / Form&nbsp;4562 flow.</p>
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Schedule F */}
         <Card className="p-6">
           <SectionHeading icon={<Receipt size={18} className="text-primary" />} title="Schedule F Summary" action={<Dl farmId={farmId} type="schedule-f" year={year} />} />
@@ -85,24 +85,6 @@ export default async function ReportsPage({ searchParams }: { searchParams: { ye
           </div>
         </Card>
 
-        {/* Enterprise profitability */}
-        <Card className="p-6">
-          <SectionHeading icon={<Tractor size={18} className="text-primary" />} title="Enterprise Profitability" action={<Dl farmId={farmId} type="enterprises" year={year} />} />
-          <div className="mt-4 space-y-3">
-            {enterprises.map((e) => (
-              <div key={e.name} className="rounded-btn bg-surface-sunken px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-ink">{e.name}</span>
-                  <span className="font-serif font-bold"><Money cents={e.netCents} /></span>
-                </div>
-                <div className="mt-1 flex gap-4 text-xs text-muted">
-                  <span>Income <Money cents={e.incomeCents} className="text-xs" /></span>
-                  <span>Expense <Money cents={e.expenseCents} className="text-xs" /></span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
       </div>
     </>
   );

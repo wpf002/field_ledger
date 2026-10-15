@@ -1,7 +1,8 @@
 import "./load-env.js"; // must be first — loads root .env before Prisma client
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { balanceSheetAt, cashFlowReport, incomeStatement, financialRatios, ratioInputsFor, periodFor, type BalanceSheet, type IncomeStatement, type Ratios } from "@fl/core";
+import { balanceSheetAt, cashFlowReport, incomeStatement, financialRatios, ratioInputsFor, periodFor, enterpriseStatements, cropEconomics, headEconomics, type BalanceSheet, type IncomeStatement, type Ratios } from "@fl/core";
+import { loadEnterpriseInputs } from "../src/enterprise-inputs.js";
 import { prisma } from "../src/index.js";
 import { loadStatementInputs } from "../src/statement-inputs.js";
 import { readWorkbook, toCents, toDate, type Row } from "../src/testfarms/workbook.js";
@@ -135,6 +136,61 @@ async function verifyFarm(file: string): Promise<Result[]> {
   }
   results.push(raRes);
 
+  // Enterprise P&L, crop per-acre and livestock per-head economics.
+  const enRes: Result = { check: "Enterprise & unit economics", compared: 0, failures: [] };
+  const ei = await loadEnterpriseInputs(prisma, farm.id, inputs.cutoff);
+  const entByExt = new Map(ei.enterprises.map((e) => [e.externalId, e.id]));
+  const EN_COLS: Record<string, keyof IncomeStatement> = {
+    revenue: "revenueCents", internal_transfers_net: "transfersCents", cost_of_production: "copCents", gross_profit: "grossProfitCents",
+    overhead: "overheadCents", ebitda: "ebitdaCents", depreciation: "depreciationCents", interest: "interestCents", gain_on_asset_sales: "gainCents",
+    net_income_operating_basis: "netIncomeOperatingCents", inventory_change: "inventoryChangeCents", livestock_value_change: "livestockChangeCents",
+    net_farm_income_accrual: "netFarmIncomeCents",
+  };
+  const cut = cutoffOf(inputs.cutoff);
+  const yearRange = (y: number) => ({ from: new Date(Date.UTC(y - 1, 11, 31)), to: y === cut.getUTCFullYear() ? cut : new Date(Date.UTC(y, 11, 31)) });
+  const statementsByYear = new Map<number, ReturnType<typeof enterpriseStatements>>();
+  for (const row of tables.IS_Annual_Enterprise ?? []) {
+    const y = Number(row.period);
+    if (!statementsByYear.has(y)) { const r = yearRange(y); statementsByYear.set(y, enterpriseStatements(inputs.rows, r.from, r.to)); }
+    const st = row.enterprise_id === "TOTAL" ? (() => { const r = yearRange(y); return incomeStatement(inputs.rows, r.from, r.to); })() : statementsByYear.get(y)!.get(entByExt.get(String(row.enterprise_id)) ?? "?");
+    for (const [col, k] of Object.entries(EN_COLS)) {
+      if (row.enterprise_id === "TOTAL" && col === "internal_transfers_net") continue;
+      cmp(enRes, `${y} ${row.enterprise_id} ${col}`, toCents(row[col]), (st?.[k] as bigint) ?? 0n);
+    }
+  }
+  const crops = cropEconomics(inputs.rows, ei.cropSeasons, ei.depreciationByEnterpriseYear);
+  const cropById = new Map(crops.map((c) => [c.season.id, c]));
+  const seasonByExt = new Map((await prisma.cropSeason.findMany({ where: { farmId: farm.id } })).map((s) => [s.externalId, s.id]));
+  const near = (label: string, exp: unknown, got: number | null, tol = 0.011) => {
+    enRes.compared++;
+    if (exp == null || got == null) { if (exp != null || got != null) enRes.failures.push(`${label}: expected ${exp} got ${got}`); return; }
+    if (Math.abs(Number(exp) - got) > tol) enRes.failures.push(`${label}: expected ${exp} got ${got.toFixed(4)}`);
+  };
+  // Closed crop years only: the workbook annualizes in-progress allocations by factors it doesn't publish.
+  for (const row of (tables.Unit_Econ_Crops ?? []).filter((r) => r.data_type === "Actual" && Number(r.crop_year) < cut.getUTCFullYear())) {
+    const c = cropById.get(seasonByExt.get(String(row.crop_season_id)) ?? "");
+    if (!c) { enRes.compared++; enRes.failures.push(`${row.crop_season_id}: no season`); continue; }
+    const L = String(row.crop_season_id);
+    near(`${L} revenue_per_acre`, row.revenue_per_acre, c.perAcre.revenue, 0.02); // season revenue vs ledger differ by rounding
+    for (const [col, k] of [["seed", "seed"], ["fertilizer", "fertilizer"], ["chemical", "chemical"], ["fuel", "fuel"], ["contractor", "contractor"], ["irrigation", "irrigation"], ["repairs", "repairs"], ["crop_insurance", "cropInsurance"], ["other_direct", "otherDirect"]] as const) near(`${L} ${col}_per_acre`, row[`${col}_per_acre`], c.perAcre[k]);
+    near(`${L} allocated_depreciation_per_acre`, row.allocated_depreciation_per_acre, c.perAcre.depreciation);
+    near(`${L} allocated_shared_cost_per_acre`, row.allocated_shared_cost_per_acre, c.perAcre.shared);
+    near(`${L} total_cost_per_acre`, row.total_cost_per_acre, c.perAcre.total, 0.02);
+    near(`${L} profit_per_acre`, row.profit_per_acre, c.perAcre.profit, 0.02);
+    near(`${L} break_even_yield`, row.break_even_yield, c.breakEvenYield, 0.02);
+    near(`${L} break_even_price`, row.break_even_price, c.breakEvenPrice, 0.0002);
+  }
+  for (const row of tables.Unit_Econ_Livestock ?? []) {
+    const y = Number(row.year), r = yearRange(y);
+    const h = headEconomics(inputs.rows, entByExt.get(String(row.enterprise_id)) ?? "?", r.from, r.to, Number(row.head_count));
+    const L = `${row.enterprise_id} ${y}`;
+    near(`${L} revenue_incl_transfers_out`, row.revenue_incl_transfers_out, Number(h.revenueInclTransfersCents) / 100);
+    for (const [col, k] of [["animal_cost_transfers_in", "animalCostTransfersIn"], ["feed", "feed"], ["vet", "vet"], ["breeding_genetics", "breedingGenetics"], ["processing", "processing"], ["labor", "labor"], ["other_direct", "otherDirect"], ["overhead_dep_interest", "overheadDepInterest"]] as const) near(`${L} ${col}_per_head`, row[`${col}_per_head`], h.perHead[k]);
+    near(`${L} total_cost_per_head`, row.total_cost_per_head, h.perHead.total, 0.02);
+    near(`${L} profit_per_head_accrual`, row.profit_per_head_accrual, h.perHead.profitAccrual, 0.02);
+  }
+  results.push(enRes);
+
   // Sub-ledgers at the cutoff.
   const subRes: Result = { check: "AR, debt, herd flow", compared: 0, failures: [] };
   const cutoff = inputs.cutoff!;
@@ -156,6 +212,18 @@ async function verifyFarm(file: string): Promise<Result[]> {
     if (prev != null) cmp(subRes, `herd ${h.monthEnd.toISOString().slice(0, 7)} ${h.animalClass} opening = prior ending`, BigInt(prev), BigInt(h.opening));
     lastEnding.set(h.animalClass, h.ending);
   }
+  // Annual herd roll = monthly rolls aggregated (2026 through the cutoff).
+  for (const row of tables.Herd_Flow_Annual ?? []) {
+    const y = toDate(row.period_end)!.getUTCFullYear();
+    const months = herd.filter((h) => h.monthEnd.getUTCFullYear() === y && h.animalClass === row.animal_class && h.species === row.species);
+    if (!months.length) { subRes.compared++; subRes.failures.push(`herd annual ${y} ${row.animal_class}: no months`); continue; }
+    const s = (k: keyof (typeof months)[number]) => BigInt(months.reduce((a, h) => a + (h[k] as number), 0));
+    const pairs: [string, bigint][] = [["opening", BigInt(months[0]!.opening)], ["births", s("births")], ["purchases", s("purchases")], ["deaths", s("deaths")], ["culls_sold", s("cullsSold")], ["sales", s("sales")], ["processed", s("processed")], ["household_use", s("householdUse")], ["ending", BigInt(months[months.length - 1]!.ending)]];
+    for (const [k, v] of pairs) cmp(subRes, `herd annual ${y} ${row.animal_class} ${k}`, BigInt(Number(row[k] ?? 0)), v);
+    // The annual tab drops animals that enter and leave a class within the year, so compare net transfers.
+    cmp(subRes, `herd annual ${y} ${row.animal_class} net transfers`, BigInt(Number(row.transfers_in ?? 0) - Number(row.transfers_out ?? 0)), s("transfersIn") - s("transfersOut"));
+  }
+
   // Checks tab: revenue / COP / interest by year (through the cutoff).
   for (const row of tables.Checks ?? []) {
     const year = Number(row.Year);

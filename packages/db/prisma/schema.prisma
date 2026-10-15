@@ -24,13 +24,13 @@ model User {
 }
 
 model Farm {
-  id                    String               @id @default(uuid())
+  id                    String                @id @default(uuid())
   name                  String
-  externalId            String?              @unique // dataset business_id, e.g. BIZ-RCK
+  externalId            String?               @unique // dataset business_id, e.g. BIZ-RCK
   ownerName             String?
   location              String?
   structure             String? // sole prop | LLC (partnership) | ...
-  acres                 Decimal?             @db.Decimal(12, 2)
+  acres                 Decimal?              @db.Decimal(12, 2)
   accountingMethod      String?
   profile               Json? // free-form business profile (goals, challenges, labor)
   reportCutoff          DateTime? // last closed month-end for actuals (test farms: 2026-09-30)
@@ -73,9 +73,10 @@ model Farm {
   importBatches         ImportBatch[]
   alertSettings         AlertSetting[]
   alertDismissals       AlertDismissal[]
-  createdAt             DateTime             @default(now())
+  createdAt             DateTime              @default(now())
   HerdFlowMonth         HerdFlowMonth[]
   LandValuation         LandValuation[]
+  EnterpriseUnitCount   EnterpriseUnitCount[]
 }
 
 enum Role {
@@ -914,4 +915,17 @@ model LandValuation {
   source           String?
 
   @@unique([farmId, asOf])
+}
+
+/// Unit basis for per-head (or per-unit) economics: e.g. cows calving, hogs processed, straws sold.
+model EnterpriseUnitCount {
+  id           String @id @default(uuid())
+  farm         Farm   @relation(fields: [farmId], references: [id])
+  farmId       String
+  enterpriseId String
+  year         Int
+  basis        String
+  count        Int
+
+  @@unique([farmId, enterpriseId, year])
 }

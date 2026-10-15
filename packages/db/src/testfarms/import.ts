@@ -323,6 +323,14 @@ export async function importTestFarm(prisma: PrismaClient, path: string): Promis
     });
   }
 
+  // Unit bases for per-head economics (cows calving, hogs processed, straws sold, ...).
+  await prisma.enterpriseUnitCount.createMany({
+    data: t("Unit_Econ_Livestock").filter((r) => E(r.enterprise_id)).map((r) => ({
+      farmId, enterpriseId: E(r.enterprise_id)!, year: req(int(r.year), "year"), basis: str(r.head_basis) ?? "Head", count: int(r.head_count) ?? 0,
+    })),
+    skipDuplicates: true,
+  });
+
   // ---------- plans, assumptions, references ----------
   await prisma.enterpriseBudget.createMany({
     data: t("Budget_vs_Actual").map((r) => ({

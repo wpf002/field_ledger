@@ -7,12 +7,21 @@ import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 import { getValuedInventory } from "@/lib/valuation";
 import { sumCents } from "@fl/core";
 import { Boxes, Beef, Wheat, Tractor } from "lucide-react";
+import { prisma } from "@fl/db";
+import { InventorySnapshotView } from "@/components/inventory-snapshot-view";
+import { getStatementContext } from "@/lib/statements";
 
 export const dynamic = "force-dynamic";
 
-export default async function InventoryPage() {
+export default async function InventoryPage({ searchParams }: { searchParams: { shock?: string } }) {
   const farmId = await getDemoFarmId();
   const canEdit = canWrite(await getCurrentRole());
+  // Farms with month-end snapshots (imported books) get the snapshot view.
+  if (await prisma.inventorySnapshot.count({ where: { farmId } })) {
+    const { asOf } = await getStatementContext(farmId);
+    const shock = [10, 15, 20, 30].includes(Number(searchParams.shock)) ? Number(searchParams.shock) / 100 : 0.1;
+    return (<><PageHeader title="Inventory" /><InventorySnapshotView farmId={farmId} asOf={asOf} shock={shock} /></>);
+  }
   const valued = await getValuedInventory(farmId);
 
   const catValue = (cats: string[]) => sumCents(valued.filter((v) => cats.includes(v.item.category)).map((v) => v.valuation.valueCents));

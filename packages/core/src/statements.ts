@@ -20,6 +20,8 @@ export type StatementRow = {
   enterpriseId?: string | null;
   cashFlowClass?: string | null;
   statementLine?: string | null;
+  cropSeasonId?: string | null;
+  entryType?: string;
 };
 
 export type InventorySnap = { asOf: Date; category: string; bsValuation: string; costBasisCents: bigint; marketValueCents: bigint };
