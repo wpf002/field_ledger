@@ -11,7 +11,7 @@ const DEMO = [
   { email: "viewer@acreflow.test", name: "Jordan Bell", role: "Viewer", desc: "Read-only — can view everything, but cannot change data.", icon: Eye },
 ];
 
-export function LoginForm() {
+export function LoginForm({ next }: { next?: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -19,7 +19,7 @@ export function LoginForm() {
 
   async function signIn(e: string, pw: string, key: string) {
     setBusy(key); setError(null);
-    const res = await login(e, pw); // redirects on success
+    const res = await login(e, pw, next); // redirects on success
     if (res?.error) { setError(res.error); setBusy(null); }
   }
 

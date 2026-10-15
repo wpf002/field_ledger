@@ -11,10 +11,18 @@ export function middleware(req: NextRequest) {
   // on mere cookie presence: the edge runtime can't verify the token, and a
   // stale-but-present cookie would loop with the data layer's redirect back to
   // /login (which then re-issues a valid cookie on the next sign-in).
-  if (!hasToken && pathname !== "/login") return NextResponse.redirect(new URL("/login", req.url));
-  return NextResponse.next();
+  if (!hasToken && pathname !== "/login") {
+    // Come back here after signing in (e.g. the OAuth consent screen).
+    const to = new URL("/login", req.url);
+    if (pathname !== "/") to.searchParams.set("next", pathname + req.nextUrl.search);
+    return NextResponse.redirect(to);
+  }
+  // Let the layout know the path so standalone screens skip the app shell.
+  const headers = new Headers(req.headers);
+  headers.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers } });
 }
 
 // Exclude the API proxy (it does its own auth and must return JSON, not a login
 // redirect) and public/PWA assets.
-export const config = { matcher: ["/((?!api|_next/static|_next/image|favicon.ico|sw.js|offline.html|manifest.webmanifest|icon).*)"] };
+export const config = { matcher: ["/((?!api|\\.well-known|_next/static|_next/image|favicon.ico|sw.js|offline.html|manifest.webmanifest|icon).*)"] };

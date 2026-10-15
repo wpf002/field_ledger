@@ -202,8 +202,9 @@ Farmbrite's direct API need partner access.
 
 **Status (Phase 19):** public API (`/api/v1`) and a stateless Streamable HTTP MCP
 server (`/api/mcp`) are live behind personal access tokens with read and analyze
-scopes; tested with tools/list and tools/call. OAuth in front of `/mcp` (needed by
-claude.ai custom connectors and ChatGPT apps) is not built. John Deere and Trimble
+scopes; tested with tools/list and tools/call. OAuth 2.1 in front of `/mcp`
+(discovery, dynamic registration, PKCE, rotating refresh) lets claude.ai and ChatGPT
+connect without a pasted token; tested end to end locally. John Deere and Trimble
 require partner approval and are listed, not built.
 
 ## Not in this roadmap

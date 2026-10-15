@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import type { Metadata, Viewport } from "next";
 import { Bitter, Inter } from "next/font/google";
 import "./globals.css";
@@ -24,11 +25,12 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getCurrentFarm();
+  const standalone = headers().get("x-pathname")?.startsWith("/oauth/") ?? false;
   return (
     <html lang="en" className={`${serif.variable} ${sans.variable}`}>
       <body className="font-sans">
         <OfflineSync />
-        {session ? (
+        {session && !standalone ? (
           <div className="flex min-h-screen">
             <SidebarNav
               user={{ name: session.user.name ?? session.user.email, email: session.user.email }}

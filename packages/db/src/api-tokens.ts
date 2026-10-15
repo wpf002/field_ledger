@@ -14,7 +14,7 @@ export async function createApiToken(prisma: PrismaClient, o: { userId: string; 
 export async function verifyApiToken(prisma: PrismaClient, token: string | undefined) {
   if (!token?.startsWith("afk_")) return null;
   const rec = await prisma.apiToken.findUnique({ where: { tokenHash: hash(token) } });
-  if (!rec || rec.revokedAt) return null;
+  if (!rec || rec.revokedAt || (rec.expiresAt && rec.expiresAt < new Date())) return null;
   const member = await prisma.membership.findUnique({ where: { userId_farmId: { userId: rec.userId, farmId: rec.farmId } } });
   if (!member) return null;
   await prisma.apiToken.update({ where: { id: rec.id }, data: { lastUsedAt: new Date() } });

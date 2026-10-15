@@ -9,14 +9,17 @@ const cookieOpts = { path: "/", sameSite: "lax" as const, secure: process.env.NO
 // same-origin through the Next proxy, so the browser attaches it automatically.
 const tokenCookieOpts = { ...cookieOpts, httpOnly: true };
 
-export async function login(email: string, password: string): Promise<{ error?: string }> {
+/** Same-site path to return to after sign-in; anything else falls back to the dashboard. */
+const safeNext = (next?: string) => (next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+
+export async function login(email: string, password: string, next?: string): Promise<{ error?: string }> {
   const user = await prisma.user.findUnique({ where: { email }, include: { memberships: true } });
   if (!user || user.memberships.length === 0) return { error: "No account for that email." };
   if (!verifyPassword(password, user.passwordHash)) return { error: "Incorrect email or password." };
   const c = cookies();
   c.set(TOKEN_COOKIE, signToken(user.id), tokenCookieOpts);
   c.set(FARM_COOKIE, user.memberships[0]!.farmId, cookieOpts);
-  redirect("/");
+  redirect(safeNext(next));
 }
 
 export async function logout() {

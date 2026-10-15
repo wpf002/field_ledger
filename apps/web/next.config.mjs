@@ -7,7 +7,11 @@ const nextConfig = {
   // JS-readable token + Bearer interceptor that the cross-origin setup needed.
   async rewrites() {
     const target = process.env.API_URL ?? "http://localhost:4000";
-    return [{ source: "/api/:path*", destination: `${target}/:path*` }];
+    return [
+      { source: "/api/:path*", destination: `${target}/:path*` },
+      // OAuth discovery for MCP connectors must sit at the origin root.
+      { source: "/.well-known/:path*", destination: `${target}/.well-known/:path*` },
+    ];
   },
   // @fl/core/@fl/db source uses NodeNext-style ".js" import specifiers that
   // point at ".ts" files. tsx resolves these natively; webpack needs the alias.

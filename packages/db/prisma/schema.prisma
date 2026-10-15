@@ -1001,9 +1001,47 @@ model ApiToken {
   prefix     String // first characters, shown in the UI
   tokenHash  String    @unique
   scope      String    @default("read") // read | analyze
+  clientId   String? // set when issued to an OAuth client (MCP connectors)
+  expiresAt  DateTime?
   lastUsedAt DateTime?
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
 
   @@index([userId])
+}
+
+/// OAuth 2.1 client registered dynamically (RFC 7591) by an MCP connector such as claude.ai or ChatGPT.
+model OAuthClient {
+  id           String   @id @default(uuid())
+  clientId     String   @unique
+  name         String?
+  redirectUris Json
+  createdAt    DateTime @default(now())
+}
+
+/// Single-use authorization code (PKCE S256), stored hashed.
+model OAuthCode {
+  id            String    @id @default(uuid())
+  codeHash      String    @unique
+  clientId      String
+  userId        String
+  farmId        String
+  scope         String
+  redirectUri   String
+  codeChallenge String
+  expiresAt     DateTime
+  usedAt        DateTime?
+}
+
+/// Rotating refresh token, stored hashed.
+model OAuthRefresh {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  clientId  String
+  userId    String
+  farmId    String
+  scope     String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
 }

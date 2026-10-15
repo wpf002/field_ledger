@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { prisma, verifyApiToken } from "@fl/db";
 import { LEDGER_TOOLS, TOOL_TIER } from "../lib/ledger-tools.js";
 import { bearer } from "../lib/session.js";
+import { resourceMetadataUrl } from "./oauth.js";
 
 /**
  * Public API (/v1) and remote MCP server (/mcp) for ChatGPT, Claude, Gemini, or any
@@ -32,7 +33,7 @@ const toJson = (data: unknown) => JSON.parse(JSON.stringify(data, (_k, v) => (ty
 
 async function auth(req: FastifyRequest, reply: FastifyReply) {
   const t = await verifyApiToken(prisma, bearer(req.headers.authorization));
-  if (!t) { reply.code(401).header("WWW-Authenticate", 'Bearer realm="acreflow"').send({ message: "A valid API token is required." }); return null; }
+  if (!t) { reply.code(401).header("WWW-Authenticate", `Bearer realm="acreflow", resource_metadata="${resourceMetadataUrl()}"`).send({ message: "A valid API token is required." }); return null; }
   return t;
 }
 

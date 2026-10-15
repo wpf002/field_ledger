@@ -63,6 +63,17 @@ Claude Code:
 claude mcp add --transport http acreflow https://<origin>/api/mcp --header "Authorization: Bearer afk_..."
 ```
 
-Clients that only support OAuth for remote servers (claude.ai custom connectors,
-ChatGPT apps) need an OAuth authorization server in front of `/mcp`; that is not
-built yet.
+claude.ai custom connectors and ChatGPT apps use OAuth instead of a pasted token.
+Add `https://<origin>/api/mcp` as the connector URL; the client discovers the rest:
+
+- `/.well-known/oauth-protected-resource/api/mcp` (RFC 9728), pointed to by the
+  `WWW-Authenticate` header on a 401 from `/mcp`
+- `/.well-known/oauth-authorization-server` (RFC 8414)
+- `POST /api/oauth/register`: dynamic client registration (public clients, https or
+  loopback redirect URIs)
+- `/oauth/authorize`: consent screen; the user picks the farm and Read or
+  Read + Analyze (viewers get Read)
+- `POST /api/oauth/token`: authorization code with PKCE S256, refresh tokens rotate
+
+Access tokens last 1 hour, refresh tokens 30 days. A refresh fails once the user
+loses membership in the farm.
