@@ -26,7 +26,7 @@ export type InventorySnap = { asOf: Date; category: string; bsValuation: string;
 export type AssetRec = { category: string; purchasedAt: Date; originalCostCents: bigint; salvageCents: bigint; usefulLifeYears: number | null; disposedAt: Date | null; estCurrentValueCents?: bigint | null };
 export type LoanRec = {
   id: string; debtType: string | null; isLine: boolean; originatedAt: Date | null; originalCents: bigint;
-  schedule: { dueDate: Date; principalCents: bigint; endingBalanceCents: bigint }[];
+  schedule: { dueDate: Date; principalCents: bigint; endingBalanceCents: bigint; paymentCents?: bigint }[];
 };
 export type Opening = { asOf: Date; cashCents: bigint; contributedCents: bigint; retainedCents: bigint; operatingLineCents: bigint; landMarketCents?: bigint };
 
@@ -157,7 +157,8 @@ export type BalanceSheet = {
   balanceCheckCents: bigint; landMarketCents: bigint; marketNetWorthCents: bigint;
 };
 
-export type BalanceSheetInputs = { rows: StatementRow[]; inventory: InventorySnap[]; assets: AssetRec[]; loans: LoanRec[]; opening: Opening };
+export type LandValue = { asOf: Date; marketValueCents: bigint };
+export type BalanceSheetInputs = { rows: StatementRow[]; inventory: InventorySnap[]; assets: AssetRec[]; loans: LoanRec[]; opening: Opening; landValues?: LandValue[] };
 
 export function balanceSheetAt(inp: BalanceSheetInputs, at: Date): BalanceSheet {
   const m = t(at), open = t(inp.opening.asOf);
@@ -217,7 +218,10 @@ export function balanceSheetAt(inp: BalanceSheetInputs, at: Date): BalanceSheet 
   bs.totalLiabilitiesCents = bs.totalCurrentLiabilitiesCents + bs.landLoansCents + bs.equipmentLoansCents + bs.vehicleLoansCents + bs.otherTermDebtCents;
   bs.totalEquityCents = bs.contributedCents + bs.retainedCents;
   bs.balanceCheckCents = bs.totalAssetsCents - bs.totalLiabilitiesCents - bs.totalEquityCents;
-  const landMarket = sum(inp.assets.filter((a) => a.category === "Land" && t(a.purchasedAt) <= m).map((a) => a.estCurrentValueCents ?? a.originalCostCents));
+  // Latest land valuation on or before the date; otherwise the register's estimates.
+  const valuation = (inp.landValues ?? []).filter((v) => t(v.asOf) <= m).sort((a, b) => t(b.asOf) - t(a.asOf))[0];
+  const landMarket = valuation?.marketValueCents
+    ?? sum(inp.assets.filter((a) => a.category === "Land" && t(a.purchasedAt) <= m).map((a) => a.estCurrentValueCents ?? a.originalCostCents));
   bs.landMarketCents = landMarket;
   bs.marketNetWorthCents = bs.totalEquityCents + landMarket - bs.landCents;
   return bs;

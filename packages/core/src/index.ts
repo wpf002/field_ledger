@@ -12,3 +12,4 @@ export * from "./txf.js";
 export * from "./assistant.js";
 export * from "./chart.js";
 export * from "./statements.js";
+export * from "./ratios.js";

@@ -1,7 +1,7 @@
 import "./load-env.js"; // must be first — loads root .env before Prisma client
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { balanceSheetAt, cashFlowReport, incomeStatement, type BalanceSheet, type IncomeStatement } from "@fl/core";
+import { balanceSheetAt, cashFlowReport, incomeStatement, financialRatios, ratioInputsFor, periodFor, type BalanceSheet, type IncomeStatement, type Ratios } from "@fl/core";
 import { prisma } from "../src/index.js";
 import { loadStatementInputs } from "../src/statement-inputs.js";
 import { readWorkbook, toCents, toDate, type Row } from "../src/testfarms/workbook.js";
@@ -31,6 +31,7 @@ const BS_LINES: Record<string, keyof BalanceSheet> = {
   "Total current liabilities": "totalCurrentLiabilitiesCents", "TOTAL LIABILITIES": "totalLiabilitiesCents",
   "Owner contributed capital": "contributedCents", "Retained earnings": "retainedCents", "TOTAL EQUITY": "totalEquityCents",
   "Balance check (assets - liabilities - equity)": "balanceCheckCents",
+  "memo: land at market value": "landMarketCents", "memo: market-value net worth": "marketNetWorthCents",
 };
 // The workbook nets the whole current portion against the land-loan line; the app
 // splits it per loan (GAAP). Compare these four lines as a total.
@@ -96,6 +97,44 @@ async function verifyFarm(file: string): Promise<Result[]> {
   }
   results.push(cfRes);
 
+  // FFSC ratios: workbook values are rounded to 4 decimals; money fields to the cent.
+  const raRes: Result = { check: "Financial ratios", compared: 0, failures: [] };
+  const RATIO_COLS: Record<string, keyof Ratios> = {
+    current_ratio: "currentRatio", working_capital_to_gross_revenue: "workingCapitalToGrossRevenue", debt_to_asset: "debtToAsset",
+    equity_to_asset: "equityToAsset", debt_to_equity: "debtToEquity", debt_to_asset_market: "debtToAssetMarket",
+    rate_of_return_on_assets_cost: "returnOnAssetsCost", rate_of_return_on_assets_market: "returnOnAssetsMarket", rate_of_return_on_equity: "returnOnEquity",
+    operating_profit_margin: "operatingProfitMargin", asset_turnover: "assetTurnover", operating_expense_ratio: "operatingExpenseRatio",
+    depreciation_expense_ratio: "depreciationExpenseRatio", interest_expense_ratio: "interestExpenseRatio", net_farm_income_ratio: "netFarmIncomeRatio",
+    term_debt_coverage_ratio: "termDebtCoverage",
+  };
+  const MONEY_COLS: Record<string, keyof Ratios> = {
+    gross_revenue_accrual: "grossRevenueCents", working_capital: "workingCapitalCents", owner_labor_mgmt_charge: "ownerLaborCents",
+    capital_debt_repayment_capacity: "capitalDebtRepaymentCapacityCents", repayment_margin: "repaymentMarginCents", total_debt: "totalDebtCents",
+  };
+  for (const row of tables.Ratios ?? []) {
+    const label = String(row.period);
+    const kind = label.startsWith("FY") ? "year" : label.startsWith("TTM") ? "ttm" : "ytd";
+    const anchor = kind === "year" ? new Date(Date.UTC(Number(label.slice(2)), 11, 31)) : cutoffOf(inputs.cutoff);
+    const ri = ratioInputsFor(inputs, periodFor(kind, anchor), inputs.ownerLaborAnnualCents);
+    const r = financialRatios(ri);
+    for (const [col, k] of Object.entries(RATIO_COLS)) {
+      raRes.compared++;
+      const exp = row[col] == null ? null : Number(row[col]); const got = r[k] as number | null;
+      if (exp == null ? got != null && Number.isFinite(got) && exp !== null : got == null || Math.abs(Math.round(got * 10000) / 10000 - exp) > 0.00011) raRes.failures.push(`${label} ${col}: expected ${exp} got ${got}`);
+    }
+    for (const [col, k] of Object.entries(MONEY_COLS)) {
+      // The workbook's owner labor charge is a daily rate it never publishes; derived from the
+      // rounded annual figure it can land 1 cent off in leap years and partial years.
+      if (col === "owner_labor_mgmt_charge") { raRes.compared++; const d = toCents(row[col]) - (r[k] as bigint); if (d > 1n || d < -1n) raRes.failures.push(`${label} ${col}: expected ${toCents(row[col])} got ${r[k]}`); continue; }
+      cmp(raRes, `${label} ${col}`, toCents(row[col]), r[k] as bigint);
+    }
+    cmp(raRes, `${label} term_interest_paid`, toCents(row.term_interest_paid), ri.termInterestPaidCents);
+    cmp(raRes, `${label} term_principal_paid`, toCents(row.term_principal_paid), ri.termPrincipalPaidCents);
+    cmp(raRes, `${label} scheduled_term_debt_payments`, toCents(row.scheduled_term_debt_payments), ri.scheduledTermPaymentsCents);
+    cmp(raRes, `${label} owner_withdrawals`, toCents(row.owner_withdrawals), ri.withdrawalsCents);
+  }
+  results.push(raRes);
+
   // Sub-ledgers at the cutoff.
   const subRes: Result = { check: "AR, debt, herd flow", compared: 0, failures: [] };
   const cutoff = inputs.cutoff!;
@@ -129,6 +168,8 @@ async function verifyFarm(file: string): Promise<Result[]> {
   results.push(subRes);
   return results;
 }
+
+const cutoffOf = (d: Date | null) => { if (!d) throw new Error("farm has no report cutoff"); return d; };
 
 async function main() {
   let failed = 0;

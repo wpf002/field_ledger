@@ -12,7 +12,7 @@ const surfaces: Record<Variant, string> = {
 
 export function StatCard({
   label, value, sub, icon, variant = "default", fill = false, className,
-}: { label: string; value: React.ReactNode; sub?: string; icon?: React.ReactNode; variant?: Variant; fill?: boolean; className?: string }) {
+}: { label: string; value: React.ReactNode; sub?: React.ReactNode; icon?: React.ReactNode; variant?: Variant; fill?: boolean; className?: string }) {
   const onFill = variant === "primary" || variant === "brown";
   return (
     <div className={clsx("rounded-card p-5 shadow-card sm:p-6", surfaces[variant], fill && "flex flex-col", className)}>

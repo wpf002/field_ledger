@@ -2,9 +2,9 @@ import type { PrismaClient } from "@prisma/client";
 import type { BalanceSheetInputs, StatementRow } from "@fl/core";
 
 /** Load everything the statement engine needs for one farm. */
-export async function loadStatementInputs(prisma: PrismaClient, farmId: string): Promise<BalanceSheetInputs & { cutoff: Date | null }> {
-  const [farm, txns, inventory, assets, loans, opening] = await Promise.all([
-    prisma.farm.findUniqueOrThrow({ where: { id: farmId }, select: { reportCutoff: true } }),
+export async function loadStatementInputs(prisma: PrismaClient, farmId: string): Promise<BalanceSheetInputs & { cutoff: Date | null; ownerLaborAnnualCents: bigint; hasOpeningBalances: boolean }> {
+  const [farm, txns, inventory, assets, loans, opening, landValues] = await Promise.all([
+    prisma.farm.findUniqueOrThrow({ where: { id: farmId }, select: { reportCutoff: true, ownerLaborChargeCents: true } }),
     prisma.transaction.findMany({
       where: { farmId },
       select: { date: true, cashDate: true, amountCents: true, cashEffectCents: true, paymentMethod: true, enterpriseId: true, account: { select: { code: true, label: true, section: true, cashFlowClass: true, statementLine: true } } },
@@ -13,6 +13,7 @@ export async function loadStatementInputs(prisma: PrismaClient, farmId: string):
     prisma.asset.findMany({ where: { farmId }, select: { category: true, purchasedAt: true, originalCostCents: true, salvageCents: true, usefulLifeYears: true, disposedAt: true, estCurrentValueCents: true } }),
     prisma.liability.findMany({ where: { farmId }, include: { schedule: { orderBy: { number: "asc" } } } }),
     prisma.openingBalance.findMany({ where: { farmId } }),
+    prisma.landValuation.findMany({ where: { farmId }, select: { asOf: true, marketValueCents: true } }),
   ]);
   const ob = (line: string) => opening.find((o) => o.line === line);
   const rows: StatementRow[] = txns.map((x) => ({
@@ -24,20 +25,24 @@ export async function loadStatementInputs(prisma: PrismaClient, farmId: string):
   const asOf = ob("cash")?.asOf ?? (firstDate ? new Date(firstDate.getTime() - 86_400_000) : new Date(0));
   return {
     cutoff: farm.reportCutoff,
+    ownerLaborAnnualCents: farm.ownerLaborChargeCents ?? 0n,
+    hasOpeningBalances: opening.length > 0,
     rows,
     inventory,
+    landValues,
     assets,
     loans: loans.map((l) => ({
       id: l.id, debtType: l.debtType ?? (l.type === "MORTGAGE" ? "Land loan" : l.type === "EQUIPMENT_LOAN" ? "Equipment loan" : null),
-      isLine: l.type === "OPERATING_LINE", originatedAt: l.originatedAt, originalCents: l.originalCents,
-      schedule: l.schedule.map((s) => ({ dueDate: s.dueDate, principalCents: s.principalCents, endingBalanceCents: s.endingBalanceCents })),
+      // Loans entered without a schedule are carried at their current balance.
+      isLine: l.type === "OPERATING_LINE", originatedAt: l.originatedAt, originalCents: l.schedule.length ? l.originalCents : l.balanceCents,
+      schedule: l.schedule.map((s) => ({ dueDate: s.dueDate, principalCents: s.principalCents, endingBalanceCents: s.endingBalanceCents, paymentCents: s.paymentCents })),
     })),
     opening: {
       asOf,
       cashCents: ob("cash")?.amountCents ?? 0n,
       contributedCents: ob("contributed_capital")?.amountCents ?? 0n,
       retainedCents: ob("retained_earnings")?.amountCents ?? 0n,
-      operatingLineCents: ob("operating_line")?.amountCents ?? 0n,
+      operatingLineCents: ob("operating_line")?.amountCents ?? (opening.length ? 0n : loans.filter((l) => l.type === "OPERATING_LINE").reduce((x, l) => x + l.balanceCents, 0n)),
     },
   };
 }

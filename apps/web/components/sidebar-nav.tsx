@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
-  LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText, FileSpreadsheet, ReceiptText, Landmark,
+  LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText, FileSpreadsheet, ReceiptText, Landmark, HeartPulse,
   PieChart, TrendingUp, Calendar, MessageSquare, UserCircle2, LogOut, Check, ChevronsUpDown, Eye, Menu, X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -18,11 +18,12 @@ const NAV = [
     { href: "/revenue", label: "Revenue", icon: DollarSign },
     { href: "/payables", label: "Payables", icon: ReceiptText },
     { href: "/statements", label: "Statements", icon: FileSpreadsheet },
+    { href: "/health", label: "Health", icon: HeartPulse },
     { href: "/reports", label: "Tax & Reports", icon: Landmark },
   ] },
   { group: "Operation", items: [
     { href: "/inventory", label: "Inventory", icon: Tractor },
-    { href: "/liabilities", label: "Liabilities", icon: Wallet },
+    { href: "/liabilities", label: "Debt", icon: Wallet },
     { href: "/leases", label: "Leases", icon: ScrollText },
   ] },
   { group: "Plan", items: [

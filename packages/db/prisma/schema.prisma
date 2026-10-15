@@ -24,56 +24,58 @@ model User {
 }
 
 model Farm {
-  id                  String               @id @default(uuid())
-  name                String
-  externalId          String?              @unique // dataset business_id, e.g. BIZ-RCK
-  ownerName           String?
-  location            String?
-  structure           String? // sole prop | LLC (partnership) | ...
-  acres               Decimal?             @db.Decimal(12, 2)
-  accountingMethod    String?
-  profile             Json? // free-form business profile (goals, challenges, labor)
-  reportCutoff        DateTime? // last closed month-end for actuals (test farms: 2026-09-30)
-  enterprises         Enterprise[]
-  vendors             Vendor[]
-  bills               Bill[]
-  assets              Asset[]
-  parcels             LandParcel[]
-  cropSeasons         CropSeason[]
-  animals             Animal[]
-  inventorySnapshots  InventorySnapshot[]
-  production          ProductionRecord[]
-  laborEntries        LaborEntry[]
-  weather             WeatherMonth[]
-  openingBalances     OpeningBalance[]
-  transfers           EnterpriseTransfer[]
-  enterpriseBudgets   EnterpriseBudget[]
-  budgetMonths        BudgetMonth[]
-  forecastAssumptions ForecastAssumption[]
-  scenarioLevers      ScenarioLever[]
-  semenEvents         SemenEvent[]
-  bullValuations      BullValuation[]
-  reproduction        ReproductionYear[]
-  processedAnimals    ProcessedAnimal[]
-  insightRefs         InsightReference[]
-  memberships         Membership[]
-  accounts            Account[]
-  transactions        Transaction[]
-  inventory           InventoryItem[]
-  liabilities         Liability[]
-  leases              Lease[]
-  budgets             Budget[]
-  goals               FinancialGoal[]
-  invoices            Invoice[]
-  customers           Customer[]
-  plans               ProductionPlan[]
-  periods             AccountingPeriod[]
-  alerts              Alert[]
-  importBatches       ImportBatch[]
-  alertSettings       AlertSetting[]
-  alertDismissals     AlertDismissal[]
-  createdAt           DateTime             @default(now())
-  HerdFlowMonth       HerdFlowMonth[]
+  id                    String               @id @default(uuid())
+  name                  String
+  externalId            String?              @unique // dataset business_id, e.g. BIZ-RCK
+  ownerName             String?
+  location              String?
+  structure             String? // sole prop | LLC (partnership) | ...
+  acres                 Decimal?             @db.Decimal(12, 2)
+  accountingMethod      String?
+  profile               Json? // free-form business profile (goals, challenges, labor)
+  reportCutoff          DateTime? // last closed month-end for actuals (test farms: 2026-09-30)
+  ownerLaborChargeCents BigInt? // annual owner labor & management charge used by return ratios
+  enterprises           Enterprise[]
+  vendors               Vendor[]
+  bills                 Bill[]
+  assets                Asset[]
+  parcels               LandParcel[]
+  cropSeasons           CropSeason[]
+  animals               Animal[]
+  inventorySnapshots    InventorySnapshot[]
+  production            ProductionRecord[]
+  laborEntries          LaborEntry[]
+  weather               WeatherMonth[]
+  openingBalances       OpeningBalance[]
+  transfers             EnterpriseTransfer[]
+  enterpriseBudgets     EnterpriseBudget[]
+  budgetMonths          BudgetMonth[]
+  forecastAssumptions   ForecastAssumption[]
+  scenarioLevers        ScenarioLever[]
+  semenEvents           SemenEvent[]
+  bullValuations        BullValuation[]
+  reproduction          ReproductionYear[]
+  processedAnimals      ProcessedAnimal[]
+  insightRefs           InsightReference[]
+  memberships           Membership[]
+  accounts              Account[]
+  transactions          Transaction[]
+  inventory             InventoryItem[]
+  liabilities           Liability[]
+  leases                Lease[]
+  budgets               Budget[]
+  goals                 FinancialGoal[]
+  invoices              Invoice[]
+  customers             Customer[]
+  plans                 ProductionPlan[]
+  periods               AccountingPeriod[]
+  alerts                Alert[]
+  importBatches         ImportBatch[]
+  alertSettings         AlertSetting[]
+  alertDismissals       AlertDismissal[]
+  createdAt             DateTime             @default(now())
+  HerdFlowMonth         HerdFlowMonth[]
+  LandValuation         LandValuation[]
 }
 
 enum Role {
@@ -900,4 +902,16 @@ model HerdFlowMonth {
   ending       Int
 
   @@index([farmId, monthEnd])
+}
+
+/// Market value of the land base over time (balance-sheet memo; land is carried at cost).
+model LandValuation {
+  id               String   @id @default(uuid())
+  farm             Farm     @relation(fields: [farmId], references: [id])
+  farmId           String
+  asOf             DateTime
+  marketValueCents BigInt
+  source           String?
+
+  @@unique([farmId, asOf])
 }

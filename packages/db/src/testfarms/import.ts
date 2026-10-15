@@ -59,6 +59,8 @@ export async function importTestFarm(prisma: PrismaClient, path: string): Promis
       acres: profile["Total Acres"] ? Number(profile["Total Acres"].replace(/[^0-9.]/g, "")) : null,
       accountingMethod: profile["Accounting Method"] ?? null,
       profile: { ...profile, summary: readme[1] ?? "" }, reportCutoff: CUTOFF,
+      // Annual owner labor & management charge (FY2023 is a 365-day year).
+      ownerLaborChargeCents: t("Ratios")[0] ? toCents(t("Ratios")[0]!.owner_labor_mgmt_charge) : null,
     },
   });
   const farmId = farm.id;
@@ -312,6 +314,14 @@ export async function importTestFarm(prisma: PrismaClient, path: string): Promis
       { farmId, asOf: CUTOFF, line: "land_market_value", amountCents: landMarket },
     ],
   });
+
+  // Land market value memo, every month-end.
+  const landMemo = bs.get("memo: land at market value");
+  if (landMemo) {
+    await prisma.landValuation.createMany({
+      data: bsHead.map((k) => ({ farmId, asOf: req(toDate(k), "month"), marketValueCents: toCents(landMemo[k]), source: "dataset" })),
+    });
+  }
 
   // ---------- plans, assumptions, references ----------
   await prisma.enterpriseBudget.createMany({
