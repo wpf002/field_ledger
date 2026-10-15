@@ -28,13 +28,16 @@ async function valuedInventory(farmId: string) { // starter-model inventory item
 }
 
 /** Year-to-date results and the balance sheet at the reporting date (accrual). */
-export async function financialSummary(farmId: string) {
+export async function financialSummary(farmId: string, year?: number) {
   const ctx = await forecastContext(prisma, farmId);
-  const ytd = periodFor("ytd", ctx.asOf);
-  const is = incomeStatement(ctx.inputs.rows, ytd.from, ytd.to);
-  const bs = balanceSheetAt(ctx.inputs, ctx.asOf);
+  // A completed year runs Jan 1 to Dec 31; otherwise year-to-date at the reporting date.
+  const full = year && year < ctx.asOf.getUTCFullYear();
+  const p = full ? { from: new Date(Date.UTC(year - 1, 11, 31)), to: new Date(Date.UTC(year, 11, 31)) } : periodFor("ytd", ctx.asOf);
+  const is = incomeStatement(ctx.inputs.rows, p.from, p.to);
+  const bs = balanceSheetAt(ctx.inputs, p.to);
   return {
-    asOf: ctx.asOf.toISOString().slice(0, 10),
+    period: full ? String(year) : `${ctx.asOf.getUTCFullYear()} year-to-date`,
+    asOf: p.to.toISOString().slice(0, 10),
     incomeCents: is.revenueCents.toString(),
     expenseCents: (is.copCents + is.overheadCents + is.depreciationCents + is.interestCents).toString(),
     netProfitCents: is.netFarmIncomeCents.toString(),
@@ -113,7 +116,7 @@ export async function alertsList(farmId: string) {
 
 /** Tool registry: name -> handler. Shared by the deterministic and Claude paths. */
 export const LEDGER_TOOLS: Record<string, (farmId: string, input?: Record<string, unknown>) => Promise<unknown>> = {
-  financial_summary: (f) => financialSummary(f),
+  financial_summary: (f, i) => financialSummary(f, i?.year ? Number(i.year) : undefined),
   recent_transactions: (f, i) => recentTransactions(f, Number(i?.limit ?? 5)),
   upcoming_obligations: (f, i) => upcomingObligations(f, Number(i?.days ?? 90)),
   marketable_inventory: (f) => marketableInventory(f),

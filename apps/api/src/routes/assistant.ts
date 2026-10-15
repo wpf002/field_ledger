@@ -10,7 +10,7 @@ import {
   financialHealth, cashForecast, enterpriseProfitability, accountsReceivable, financialBrief,
 } from "../lib/ledger-tools.js";
 
-const MODEL = process.env.FLINT_MODEL || "claude-opus-4-8";
+const MODEL = process.env.FLINT_MODEL || "claude-opus-5-5";
 const hasKey = () => !!process.env.ANTHROPIC_API_KEY;
 const fmt = (cents: string) => formatCentsDisplay(BigInt(cents), { sign: false });
 
@@ -23,7 +23,7 @@ If the data needed to answer isn't available from the tools, say so plainly. Be 
 Respond in plain text for a chat bubble: short sentences and simple "• " bullet lists. Do NOT use markdown tables, pipes, or "#" headers.`;
 
 const ANTHROPIC_TOOLS: Anthropic.Tool[] = [
-  { name: "financial_summary", description: "Year-to-date revenue, expenses, net farm income, plus inventory value, liabilities, and net worth at market.", input_schema: { type: "object", properties: {} } },
+  { name: "financial_summary", description: "Revenue, expenses, and net farm income (accrual) year-to-date, or for a full past year when `year` is given; plus inventory value, liabilities, and net worth at market at the period end.", input_schema: { type: "object", properties: { year: { type: "integer", description: "A completed calendar year. Omit for year-to-date." } } } },
   { name: "recent_transactions", description: "The most recent ledger transactions.", input_schema: { type: "object", properties: { limit: { type: "integer" } } } },
   { name: "upcoming_obligations", description: "Loan and lease payments due within a window of days.", input_schema: { type: "object", properties: { days: { type: "integer" } } } },
   { name: "marketable_inventory", description: "Livestock and crops available to sell, valued at current market prices.", input_schema: { type: "object", properties: {} } },
@@ -128,11 +128,18 @@ async function chatClaude(farmId: string, message: string, role: string | null) 
   // Block form from the start, so the question renders identically whether or not
   // it currently carries the breakpoint.
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: [{ type: "text", text: message }] }];
+  // The books' reporting date anchors "this year" and "last year"; it goes after the static prompt.
+  const farm = await prisma.farm.findUnique({ where: { id: farmId }, select: { reportCutoff: true } });
+  const asOf = farm?.reportCutoff ?? new Date();
+  const system: Anthropic.TextBlockParam[] = [
+    { type: "text", text: SYSTEM },
+    { type: "text", text: `The books run through ${asOf.toISOString().slice(0, 10)}. "This year" means ${asOf.getUTCFullYear()} year-to-date; "last year" means calendar ${asOf.getUTCFullYear() - 1}.` },
+  ];
   for (let i = 0; i < 6; i++) {
     const res = await client.messages.create({
       model: MODEL,
       max_tokens: 8000,
-      system: SYSTEM,
+      system,
       tools,
       messages: withTailBreakpoint(messages),
     });

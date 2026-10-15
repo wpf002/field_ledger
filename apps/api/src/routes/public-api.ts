@@ -14,7 +14,7 @@ import { resourceMetadataUrl } from "./oauth.js";
  * Nothing here writes to the books or moves money.
  */
 const TOOL_DOCS: Record<string, { title: string; description: string; input?: z.ZodRawShape }> = {
-  financial_summary: { title: "Financial Summary", description: "Year-to-date revenue, expenses, net farm income, inventory value, liabilities, and net worth at market." },
+  financial_summary: { title: "Financial Summary", description: "Revenue, expenses, net farm income year-to-date (or a full past year), inventory value, liabilities, and net worth at market.", input: { year: z.number().int().optional() } },
   cash_position: { title: "Cash Position", description: "Cash, operating line balance and availability, working capital, receivables, payables." },
   cash_forecast: { title: "Cash Forecast", description: "13-week and 12-month cash forecast with line balance and reserve check.", input: { scenario: z.enum(["base", "optimistic", "downside"]).optional() } },
   enterprise_profitability: { title: "Enterprise Profitability", description: "P&L by enterprise for a year.", input: { year: z.number().int().optional() } },
