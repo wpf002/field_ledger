@@ -10,17 +10,22 @@ import { Boxes, Beef, Wheat, Tractor } from "lucide-react";
 import { prisma } from "@fl/db";
 import { InventorySnapshotView } from "@/components/inventory-snapshot-view";
 import { getStatementContext } from "@/lib/statements";
+import { MarketingView } from "@/components/marketing-view";
+import { LinkTabs } from "@/components/ui/link-tabs";
 
 export const dynamic = "force-dynamic";
 
-export default async function InventoryPage({ searchParams }: { searchParams: { shock?: string } }) {
+export default async function InventoryPage({ searchParams }: { searchParams: { shock?: string; view?: string } }) {
   const farmId = await getDemoFarmId();
   const canEdit = canWrite(await getCurrentRole());
+  const marketing = searchParams.view === "marketing";
+  const tabs = <div className="mb-6"><LinkTabs value={marketing ? "marketing" : "onhand"} options={[{ value: "onhand", label: "On Hand", href: "/inventory" }, { value: "marketing", label: "Marketing", href: "/inventory?view=marketing" }]} /></div>;
+  if (marketing) return (<><PageHeader title="Inventory" />{tabs}<MarketingView farmId={farmId} canEdit={canEdit} /></>);
   // Farms with month-end snapshots (imported books) get the snapshot view.
   if (await prisma.inventorySnapshot.count({ where: { farmId } })) {
     const { asOf } = await getStatementContext(farmId);
     const shock = [10, 15, 20, 30].includes(Number(searchParams.shock)) ? Number(searchParams.shock) / 100 : 0.1;
-    return (<><PageHeader title="Inventory" /><InventorySnapshotView farmId={farmId} asOf={asOf} shock={shock} /></>);
+    return (<><PageHeader title="Inventory" />{tabs}<InventorySnapshotView farmId={farmId} asOf={asOf} shock={shock} /></>);
   }
   const valued = await getValuedInventory(farmId);
 
@@ -54,6 +59,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: { 
         title="Inventory"
         action={canEdit ? <AddInventoryButton farmId={farmId} /> : undefined}
       />
+      {tabs}
 
       <div className="mb-6 grid grid-cols-2 gap-5 lg:grid-cols-4">
         <StatCard label="Total Inventory Value" value={<Money cents={totalValue} className="text-white" />} sub={`${valued.length} active lots/items`} variant="primary" icon={<Boxes size={18} className="text-white/80" />} />

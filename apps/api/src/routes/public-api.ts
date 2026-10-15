@@ -22,6 +22,7 @@ const TOOL_DOCS: Record<string, { title: string; description: string; input?: z.
   livestock_profitability: { title: "Livestock Profitability", description: "Per-head revenue, cost, and profit by livestock enterprise.", input: { year: z.number().int().optional() } },
   debt_summary: { title: "Debt Summary", description: "Loans, debt ratios, term debt coverage, repayment margin." },
   inventory_position: { title: "Inventory", description: "Inventory on hand with cost basis and market value." },
+  commodity_exposure: { title: "Commodity Exposure", description: "Expected production vs. sold, contracted, and unpriced by commodity, with open marketing contracts." },
   accounts_receivable: { title: "Accounts Receivable", description: "Open invoices and aging." },
   financial_health: { title: "Financial Health", description: "0-100 health score by category with ratios." },
   insights: { title: "Insights", description: "Findings about the operation with recommendations and sources." },

@@ -332,6 +332,22 @@ export async function importTestFarm(prisma: PrismaClient, path: string): Promis
     skipDuplicates: true,
   });
 
+  // Marketing contracts named in the forecast assumptions, e.g.
+  // "Forward contract #FC-2611: 4,000 bu soybeans @ $10.45, Nov-2026 delivery".
+  const MONTH = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  for (const r of t("Forecast_Assumptions")) {
+    const m = String(r.assumption ?? "").match(/(forward|hta|basis) contract #?([\w-]+):\s*([\d,.]+)\s*(\w+)\s+([a-z]+)\s*@\s*\$([\d.]+),?\s*([a-z]{3})-(\d{4}) delivery/i);
+    if (!m) continue;
+    const [, kind, number, qty, unit, commodity, price, mon, yr] = m;
+    const mi = MONTH.indexOf(mon!.toLowerCase());
+    await prisma.marketingContract.create({ data: {
+      farmId, externalId: number, number, commodity: commodity![0]!.toUpperCase() + commodity!.slice(1).toLowerCase(), cropYear: Number(yr),
+      type: kind!.toLowerCase(), quantity: Number(qty!.replace(/,/g, "")), unit: unit!.toLowerCase(), price: Number(price),
+      deliveryStart: new Date(Date.UTC(Number(yr), mi, 1)), deliveryEnd: new Date(Date.UTC(Number(yr), mi + 1, 0)),
+      notes: str(r.source_or_note) ?? undefined,
+    } });
+  }
+
   // ---------- plans, assumptions, references ----------
   await prisma.enterpriseBudget.createMany({
     data: t("Budget_vs_Actual").map((r) => ({

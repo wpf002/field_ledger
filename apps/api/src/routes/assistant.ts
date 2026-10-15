@@ -7,7 +7,7 @@ import { classifyChat, parseQuickLog, formatCentsDisplay, inferScheduleFCode } f
 import {
   LEDGER_TOOLS, TOOL_TIER, financialSummary, recentTransactions, upcomingObligations,
   marketableInventory, budgetStatuses, scheduleFReport, alertsList,
-  financialHealth, cashForecast, enterpriseProfitability, accountsReceivable, financialBrief,
+  financialHealth, cashForecast, enterpriseProfitability, accountsReceivable, financialBrief, marketResearchEnabled,
 } from "../lib/ledger-tools.js";
 
 const MODEL = process.env.FLINT_MODEL || "claude-opus-5-5";
@@ -42,10 +42,13 @@ const ANTHROPIC_TOOLS: Anthropic.Tool[] = [
   { name: "insights", description: "Findings about the operation from the books (risks, opportunities, trends), each with a recommendation and its data sources.", input_schema: { type: "object", properties: {} } },
   { name: "financial_brief", description: "The weekly or monthly financial brief: health, cash outlook, plan variance, lowest-margin enterprise, line peak, and recommended actions.", input_schema: { type: "object", properties: { kind: { type: "string", enum: ["weekly", "monthly"] } } } },
   { name: "run_scenario", description: "What-if over the next 12 months: change prices, volume, or costs (percent), add an equipment purchase, or a new hire, and compare profit, cash, line, debt, and health before vs after. Read-only; nothing is saved.", input_schema: { type: "object", properties: { pricePct: { type: "number" }, volumePct: { type: "number" }, costPct: { type: "number" }, equipmentPrice: { type: "number" }, downPayment: { type: "number" }, ratePct: { type: "number" }, years: { type: "integer" }, hireAnnualWage: { type: "number" } } } },
+  { name: "commodity_exposure", description: "Crop marketing position by commodity and crop year: expected production, sold, contracted, priced, unpriced share, market price, value of unpriced bushels, and open forward/HTA/basis contracts.", input_schema: { type: "object", properties: {} } },
+  { name: "market_research", description: "Current outside market information from the web (cash prices, futures, basis, weather, policy) for a specific question. Send only the market question, with commodity and location. Never include the farm's own figures, names, or records.", input_schema: { type: "object", properties: { question: { type: "string" } }, required: ["question"] } },
 ];
 
 /** Tools a role may use: viewers read; everyone else may also run forecasts and scenarios. */
-const toolsFor = (role: string | null) => ANTHROPIC_TOOLS.filter((t) => TOOL_TIER[t.name] === "read" || (role && role !== "VIEWER"));
+const toolsFor = (role: string | null) => ANTHROPIC_TOOLS.filter((t) =>
+  (t.name !== "market_research" || marketResearchEnabled()) && (TOOL_TIER[t.name] === "read" || (role && role !== "VIEWER")));
 
 /** Grounded answer without an LLM: route to a tool, format its real figures. */
 async function chatDeterministic(farmId: string, message: string) {

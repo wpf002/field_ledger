@@ -89,7 +89,52 @@ const hookBody = z.object({
 export async function registerIntegrations(app: FastifyInstance) {
   app.get("/integrations/providers", async () => PROVIDERS.map((p) => ({
     key: p.key, name: p.name, category: p.category, phase: p.phase, auth: p.auth, pulls: p.pulls, docs: p.docs, env: p.env, configured: configured(p),
+    fields: p.fields?.map((f) => ({ key: f.key, label: f.label, secret: !!f.secret, placeholder: f.placeholder })),
   })));
+
+  // Per-farm credentials (PayPal app keys, AMS report picks): checked, sealed, then synced.
+  app.post("/farms/:farmId/integrations/:provider/credentials", async (req, reply) => {
+    const { farmId, provider } = req.params as { farmId: string; provider: string };
+    if (!(await writer(req, reply, farmId))) return;
+    const p = providerByKey(provider);
+    if (!p?.fields || p.auth !== "credentials") return reply.badRequest("This provider doesn't take credentials.");
+    if (!configured(p)) return reply.badRequest(`Set ${p.env.join(", ")} on the server first.`);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const creds = Object.fromEntries(p.fields.map((f) => [f.key, String(body[f.key] ?? "").trim()]));
+    const missing = p.fields.filter((f) => !creds[f.key]).map((f) => f.label);
+    if (missing.length) return reply.badRequest(`Missing ${missing.join(", ")}.`);
+    let label: string | undefined;
+    try { label = (await p.verify?.(creds))?.label; } catch (e) { return reply.badRequest(`Couldn't connect: ${e instanceof Error ? e.message.slice(0, 200) : "check the values"}`); }
+    const c = await saveConnection(farmId, provider, { accessToken: JSON.stringify(creds), label });
+    runSync(c.id).catch(() => {});
+    return { id: c.id };
+  });
+
+  // Hosted connect page (Finicity Connect, MX Connect widget): the connection exists
+  // as soon as the remote user does; accounts linked on the page show up on sync.
+  app.post("/farms/:farmId/integrations/:provider/connect-url", async (req, reply) => {
+    const { farmId, provider } = req.params as { farmId: string; provider: string };
+    if (!(await writer(req, reply, farmId))) return;
+    const p = providerByKey(provider);
+    if (!p?.connectUrl) return reply.badRequest("This provider doesn't use a connect page.");
+    if (!configured(p)) return reply.badRequest(`Set ${p.env.join(", ")} on the server first.`);
+    const existing = await prisma.connection.findFirst({ where: { farmId, provider } });
+    const { url, externalAccountId } = await p.connectUrl({ farmId, redirectUri: `${webUrl()}/integrations?connected=${provider}`, externalAccountId: existing?.externalAccountId });
+    if (!existing) await saveConnection(farmId, provider, { accessToken: "hosted", externalAccountId, label: p.name });
+    return { url };
+  });
+
+  // Server-key sources (market prices, benchmarks): the key is the server's, the farm opts in.
+  app.post("/farms/:farmId/integrations/:provider/enable", async (req, reply) => {
+    const { farmId, provider } = req.params as { farmId: string; provider: string };
+    if (!(await writer(req, reply, farmId))) return;
+    const p = providerByKey(provider);
+    if (p?.auth !== "server_key" || !p.sync) return reply.badRequest("This provider isn't enabled per farm.");
+    if (!configured(p)) return reply.badRequest(`Set ${p.env.join(", ")} on the server first.`);
+    const c = (await prisma.connection.findFirst({ where: { farmId, provider } })) ?? (await saveConnection(farmId, provider, { accessToken: "server", label: p.name }));
+    runSync(c.id).catch(() => {});
+    return { id: c.id };
+  });
 
   app.get("/farms/:farmId/integrations", async (req) => {
     const { farmId } = req.params as { farmId: string };

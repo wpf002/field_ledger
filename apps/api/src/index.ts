@@ -19,6 +19,7 @@ import { registerAssistant } from "./routes/assistant.js";
 import { registerIntegrations } from "./routes/integrations.js";
 import { registerPublicApi } from "./routes/public-api.js";
 import { registerOAuth } from "./routes/oauth.js";
+import { registerMarketing } from "./routes/marketing.js";
 import { bigintReplySerializer } from "./plugins/bigint-serializer.js";
 import { verifyToken, tokenFromRequest, roleForFarm } from "./lib/session.js";
 
@@ -63,6 +64,7 @@ await registerValuation(app);
 await registerObligations(app);
 await registerAlerts(app);
 await registerPlanning(app);
+await registerMarketing(app);
 await registerReports(app);
 await registerInvoices(app);
 await registerAssistant(app);

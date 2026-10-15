@@ -15,8 +15,8 @@ export type ExternalDoc = {
   issued: string; due: string; totalCents: bigint; balanceCents: bigint; description?: string | null;
 };
 export type ExternalPrice = { symbol: string; label: string; unit: string; priceCents: bigint; asOf: string; source: string };
-export type ExternalBatch = { txns: ExternalTxn[]; parties: ExternalParty[]; docs: ExternalDoc[]; prices: ExternalPrice[] };
-export const emptyBatch = (): ExternalBatch => ({ txns: [], parties: [], docs: [], prices: [] });
+export type ExternalBatch = { txns: ExternalTxn[]; parties: ExternalParty[]; docs: ExternalDoc[]; prices: ExternalPrice[]; benchmarks: ExternalBenchmark[] };
+export const emptyBatch = (): ExternalBatch => ({ txns: [], parties: [], docs: [], prices: [], benchmarks: [] });
 
 const cents = (n: number | string | null | undefined) => BigInt(Math.round(Number(n ?? 0) * 100));
 const isoDay = (v: string | number | Date) => (v instanceof Date ? v : typeof v === "number" ? new Date(v * 1000) : new Date(v)).toISOString().slice(0, 10);
@@ -134,6 +134,132 @@ export function mapNassPrice(r: NassRow, symbol: string): ExternalPrice | null {
   const asOf = new Date(Date.UTC(Number(r.year), mi >= 0 ? mi + 1 : 12, 0)).toISOString().slice(0, 10);
   const unit = r.unit_desc.replace(/^\$\s*\/\s*/, "").toLowerCase();
   return { symbol, label: `${r.commodity_desc[0]}${r.commodity_desc.slice(1).toLowerCase()} (${r.state_name ?? "US"})`, unit, priceCents: cents(v), asOf, source: "usda" };
+}
+
+// ---------- PayPal (Transaction Search, /v1/reporting/transactions) ----------
+export type PaypalMoney = { currency_code: string; value: string };
+export type PaypalTxn = {
+  transaction_info: {
+    transaction_id: string; transaction_event_code: string; transaction_initiation_date: string; transaction_updated_date?: string;
+    transaction_amount: PaypalMoney; fee_amount?: PaypalMoney; transaction_status: string; transaction_subject?: string; transaction_note?: string;
+  };
+  payer_info?: { email_address?: string; payer_name?: { alternate_full_name?: string; given_name?: string; surname?: string } };
+};
+/**
+ * Event codes: T00xx payments, T11xx reversals and refunds. Transfers to and from the
+ * bank (T03xx, T04xx), holds, and currency conversions move money between accounts the
+ * books already track, so they're skipped. Only completed ("S") rows count.
+ */
+export function mapPaypalTxn(t: PaypalTxn): ExternalTxn[] {
+  const i = t.transaction_info;
+  if (i.transaction_status !== "S" || !/^T(00|11)/.test(i.transaction_event_code)) return [];
+  const day = i.transaction_initiation_date.slice(0, 10);
+  const who = t.payer_info?.payer_name?.alternate_full_name ?? [t.payer_info?.payer_name?.given_name, t.payer_info?.payer_name?.surname].filter(Boolean).join(" ") ?? null;
+  const gross = cents(i.transaction_amount.value);
+  const out: ExternalTxn[] = [{
+    externalId: `paypal:${i.transaction_id}`, date: day, cashDate: day, amountCents: gross,
+    description: i.transaction_subject || i.transaction_note || (gross < 0n ? "PayPal refund" : "PayPal sale"), counterparty: who || null,
+    categoryHint: gross < 0n ? "refund" : "sale",
+  }];
+  const fee = i.fee_amount ? cents(i.fee_amount.value) : 0n;
+  if (fee !== 0n) out.push({ externalId: `paypal:${i.transaction_id}:fee`, date: day, cashDate: day, amountCents: fee < 0n ? fee : -fee, description: "PayPal fee", counterparty: "PayPal", categoryHint: "fee" });
+  return out;
+}
+
+// ---------- Finicity / Mastercard Open Finance (aggregation v3 transactions) ----------
+export type FinicityTxn = {
+  id: number | string; amount: number; postedDate: number; transactionDate?: number; description: string; memo?: string; status: string;
+  categorization?: { normalizedPayeeName?: string; category?: string };
+};
+/** Finicity signs amounts from the account's view (debits negative); dates are epoch seconds. */
+export function mapFinicityTxn(t: FinicityTxn): ExternalTxn {
+  return {
+    externalId: `finicity:${t.id}`, date: isoDay(t.transactionDate || t.postedDate), cashDate: isoDay(t.postedDate), amountCents: cents(t.amount),
+    description: t.description, counterparty: t.categorization?.normalizedPayeeName ?? null, categoryHint: t.categorization?.category ?? null,
+    pending: t.status === "pending", memo: t.memo ?? null,
+  };
+}
+
+// ---------- MX Platform API (/users/{guid}/transactions) ----------
+export type MxTxn = {
+  guid: string; amount: number; type: "DEBIT" | "CREDIT"; status: "POSTED" | "PENDING"; date: string; posted_at?: string | null; transacted_at?: string | null;
+  description: string; original_description?: string; category?: string; top_level_category?: string; merchant_guid?: string | null;
+};
+/** MX amounts are unsigned; `type` gives the direction. */
+export function mapMxTxn(t: MxTxn): ExternalTxn {
+  const amt = cents(Math.abs(t.amount));
+  return {
+    externalId: `mx:${t.guid}`, date: (t.transacted_at ?? t.date).slice(0, 10), cashDate: (t.posted_at ?? t.date).slice(0, 10),
+    amountCents: t.type === "DEBIT" ? -amt : amt, description: t.description, counterparty: t.description,
+    categoryHint: t.category ?? t.top_level_category ?? null, pending: t.status === "PENDING", memo: t.original_description ?? null,
+  };
+}
+
+// ---------- USDA AMS Market News (MARS API, /services/v1.2/reports/{slug}) ----------
+export type AmsRow = Record<string, string | number | null | undefined> & { report_date?: string; commodity?: string; price_unit?: string };
+const AMS_PRICE_FIELDS = ["avg_price", "wtd_avg_price", "weighted_average", "avg_price_avg", "price_avg", "avg_bid"];
+/**
+ * Report layouts differ (grain bids, auction summaries, direct slaughter), so the
+ * price comes from the first average field present, else the midpoint of low/high.
+ */
+export function mapAmsRow(r: AmsRow, slug: string): ExternalPrice | null {
+  const num = (k: string) => { const v = Number(String(r[k] ?? "").replace(/[$,]/g, "")); return Number.isFinite(v) && String(r[k] ?? "").trim() !== "" ? v : null; };
+  let v = AMS_PRICE_FIELDS.map(num).find((x) => x != null) ?? null;
+  if (v == null) { const lo = num("price_min") ?? num("low_price") ?? num("avg_price_min"), hi = num("price_max") ?? num("high_price") ?? num("avg_price_max"); v = lo != null && hi != null ? (lo + hi) / 2 : null; }
+  if (v == null || !r.report_date) return null;
+  const d = new Date(String(r.report_date));
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = [r.commodity, r.class, r.grade, r.frame, r.weight_break_low != null ? `${r.weight_break_low}-${r.weight_break_high} lb` : null, r.location ?? r.market_location_name].filter((x) => x != null && String(x).trim() !== "");
+  const label = parts.join(" · ") || `AMS report ${slug}`;
+  const unit = String(r.price_unit ?? "").replace(/^\$\s*(per\s*)?/i, "").toLowerCase() || "unit";
+  const key = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+  return { symbol: `AMS-${slug}-${key}`, label, unit, priceCents: cents(v), asOf: d.toISOString().slice(0, 10), source: "usda" };
+}
+
+// ---------- Futures quotes (Barchart OnDemand getQuote) ----------
+export type BarchartQuote = { symbol: string; name?: string; lastPrice: number | null; previousClose?: number | null; tradeTimestamp?: string; serverTimestamp?: string };
+/** Front-month futures by commodity. Grains and cotton quote in cents; cattle and hogs in $/cwt. */
+export const FUTURES: Record<string, { root: string; label: string; unit: string; centsQuote: boolean }> = {
+  CORN: { root: "ZC", label: "Corn futures (CBOT)", unit: "bu", centsQuote: true },
+  SOYBEANS: { root: "ZS", label: "Soybean futures (CBOT)", unit: "bu", centsQuote: true },
+  WHEAT: { root: "KE", label: "KC HRW wheat futures", unit: "bu", centsQuote: true },
+  COTTON: { root: "CT", label: "Cotton futures (ICE)", unit: "lb", centsQuote: true },
+  CATTLE: { root: "LE", label: "Live cattle futures (CME)", unit: "cwt", centsQuote: false },
+  FEEDERS: { root: "GF", label: "Feeder cattle futures (CME)", unit: "cwt", centsQuote: false },
+  HOGS: { root: "HE", label: "Lean hog futures (CME)", unit: "cwt", centsQuote: false },
+};
+export function mapBarchartQuote(q: BarchartQuote): ExternalPrice | null {
+  const spec = Object.values(FUTURES).find((f) => q.symbol.startsWith(f.root));
+  const px = q.lastPrice ?? q.previousClose ?? null;
+  if (!spec || px == null) return null;
+  const dollars = spec.centsQuote ? px / 100 : px;
+  return { symbol: `${spec.root}-FRONT`, label: spec.label, unit: spec.unit, priceCents: cents(dollars), asOf: (q.tradeTimestamp ?? q.serverTimestamp ?? new Date().toISOString()).slice(0, 10), source: "cme" };
+}
+
+// ---------- USDA ERS ARMS (/data/arms/surveydata) ----------
+export type ArmsRow = { year: number; state?: string; region?: string; farmtype?: string; category?: string; category_value?: string; variable_name: string; estimate: number | string | null; median?: number | string | null; unreliable_estimate?: number | string };
+export type ExternalBenchmark = { year: number; region: string; farmType: string | null; metric: string; label: string; value: number; median: number | null };
+/** ARMS reports ratios by name; these patterns pick the ones the health score uses. */
+const ARMS_METRICS: [RegExp, string, string, boolean][] = [
+  [/current ratio/i, "currentRatio", "Current Ratio", false],
+  [/debt.to.asset/i, "debtToAsset", "Debt to Assets", true],
+  [/debt.to.equity/i, "debtToEquity", "Debt to Equity", false],
+  [/rate of return on assets|return on assets/i, "returnOnAssets", "Return on Assets", true],
+  [/rate of return on equity|return on equity/i, "returnOnEquity", "Return on Equity", true],
+  [/operating profit margin/i, "operatingProfitMargin", "Operating Margin", true],
+  [/asset turnover/i, "assetTurnover", "Asset Turnover", true],
+  [/operating expense ratio/i, "operatingExpenseRatio", "Operating Expense Ratio", true],
+  [/interest expense ratio/i, "interestExpenseRatio", "Interest Expense Ratio", true],
+  [/depreciation expense ratio/i, "depreciationExpenseRatio", "Depreciation Expense Ratio", true],
+];
+/** ARMS publishes percentage ratios as percents (12.3); the app stores fractions (0.123). */
+export function mapArmsRow(r: ArmsRow): ExternalBenchmark | null {
+  const m = ARMS_METRICS.find(([re]) => re.test(r.variable_name));
+  const v = Number(r.estimate);
+  if (!m || r.estimate == null || !Number.isFinite(v) || String(r.unreliable_estimate ?? "0") === "1") return null;
+  const scale = (x: number) => (m[3] ? x / 100 : x);
+  const med = r.median != null && Number.isFinite(Number(r.median)) ? scale(Number(r.median)) : null;
+  return { year: Number(r.year), region: r.state ?? r.region ?? "All", farmType: r.category_value ?? r.farmtype ?? null, metric: m[1], label: m[2], value: scale(v), median: med };
 }
 
 // ---------- National Weather Service forecast ----------

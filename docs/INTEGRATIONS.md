@@ -23,9 +23,25 @@ OAuth redirect URI for every provider: `<PUBLIC_WEB_URL>/api/integrations/<key>/
 | USDA NASS | `usda_nass` | `USDA_NASS_API_KEY` | Monthly prices received for the farm's crops and state |
 | NWS forecast | `nws` | none (farm coordinates) | 7-day forecast |
 | Webhook / Zapier | `webhook` | none | Pushed transactions and invoices |
+| PayPal | `paypal` | `PAYPAL_ENVIRONMENT` (`sandbox` or live); each farm enters its own REST app Client ID and Secret | Sales, refunds, fees (Transaction Search, 31-day windows) |
+| Finicity | `finicity` | `FINICITY_PARTNER_ID`, `FINICITY_PARTNER_SECRET`, `FINICITY_APP_KEY`, `FINICITY_ENV` (`testing` for test customers) | Bank and card transactions via Finicity Connect |
+| MX | `mx` | `MX_CLIENT_ID`, `MX_API_KEY`, `MX_ENVIRONMENT` (`production` or integration) | Bank and card transactions via the MX Connect widget |
+| USDA AMS Market News | `usda_ams` | `USDA_AMS_API_KEY`; each farm enters the report IDs it wants | Local cash grain bids and livestock auction prices |
+| USDA ERS | `usda_ers` | `USDA_ERS_API_KEY` (data.gov key) | ARMS farm business financial ratios, shown as peer values on Health |
+| Futures (Barchart) | `futures` | `BARCHART_API_KEY` | Front-month CBOT/CME/ICE prices for the farm's commodities |
+| Perplexity | `perplexity` | `PERPLEXITY_API_KEY`, optional `PERPLEXITY_MODEL` (default `sonar`) | `market_research` assistant tool; only the market question is sent |
+
+Finicity and MX open a hosted connect page; accounts linked there arrive on the
+next sync. Server-key sources (NASS, ERS, futures) are switched on per farm with
+**Connect**. Futures quotes and AMS prices land in `CommodityPrice`; the marketing
+view uses a farm's inventory mark first and the front-month future when there's none.
 
 Not yet exercised against live accounts: QuickBooks, Plaid, Square, Stripe, Xero,
-FreshBooks, USDA NASS. Partner programs required: Farmbrite API (Zapier works
+FreshBooks, USDA NASS, PayPal, Finicity, MX, USDA AMS, USDA ERS, Barchart, Perplexity.
+Mappers are unit-tested against documented payloads. The AMS endpoint and response
+fields follow MARS API v1.2 as published; report layouts vary, so the mapper takes
+the first average price field present. ERS parameters follow the ARMS API page
+(`report=farm business financial ratios`); state-level estimates fall back to the US. Partner programs required: Farmbrite API (Zapier works
 today through the webhook), AgriWebb, Agworld, John Deere Operations Center, Trimble.
 
 ## Webhook payload

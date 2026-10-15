@@ -101,7 +101,9 @@ the workbook to the cent.
   direct-beef price.
 - Inventory: cost vs market, expected use/sale date; inventory exposure
   ("10% price drop = $X").
-- Commodity exposure: expected production, contracted, unpriced share.
+- Commodity exposure: expected production, contracted, unpriced share. **Built
+  later:** marketing contracts (forward, HTA, basis, min price) with delivery
+  windows on Inventory → Marketing; SAM's FC-2611 imports from its assumptions.
 - Land economics per parcel and return on land.
 - Herd pages for livestock farms: registry, herd flow, reproduction metrics.
 

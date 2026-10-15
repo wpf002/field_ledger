@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   mapPlaidTransaction, mapStripeBalanceTxn, mapSquarePayment, mapQboInvoice, mapQboPurchase, mapXeroInvoice, xeroDate,
-  mapFreshbooksInvoice, mapNassPrice, categoryToScheduleF,
+  mapFreshbooksInvoice, mapNassPrice, categoryToScheduleF, mapPaypalTxn, mapFinicityTxn, mapMxTxn, mapAmsRow, mapBarchartQuote, mapArmsRow,
 } from "./integrations.js";
 
 describe("integration mappers", () => {
@@ -40,5 +40,45 @@ describe("integration mappers", () => {
     expect(mapFreshbooksInvoice({ id: 7, invoice_number: "0000007", customerid: 4, create_date: "2026-01-05", amount: { amount: "250.00", code: "USD" }, outstanding: { amount: "0.00", code: "USD" } })!.totalCents).toBe(25000n);
     expect(mapNassPrice({ commodity_desc: "CORN", statisticcat_desc: "PRICE RECEIVED", unit_desc: "$ / BU", year: 2026, reference_period_desc: "AUG", Value: "4.12", state_name: "KANSAS" }, "CORN-KS")).toMatchObject({ priceCents: 412n, asOf: "2026-08-31", unit: "bu" });
     expect(mapNassPrice({ commodity_desc: "CORN", statisticcat_desc: "PRICE RECEIVED", unit_desc: "$ / BU", year: 2026, reference_period_desc: "AUG", Value: "(D)" }, "X")).toBeNull();
+  });
+});
+
+describe("phase 2 sources", () => {
+  it("PayPal: payments split gross and fee; bank transfers skipped", () => {
+    const rows = mapPaypalTxn({ transaction_info: { transaction_id: "9GS8", transaction_event_code: "T0006", transaction_initiation_date: "2026-05-02T16:20:01+0000", transaction_amount: { currency_code: "USD", value: "150.00" }, fee_amount: { currency_code: "USD", value: "-4.84" }, transaction_status: "S", transaction_subject: "Quarter beef deposit" }, payer_info: { payer_name: { alternate_full_name: "Dana Ruiz" } } });
+    expect(rows.map((r) => r.amountCents)).toEqual([15000n, -484n]);
+    expect(rows[0]!.counterparty).toBe("Dana Ruiz");
+    expect(mapPaypalTxn({ transaction_info: { transaction_id: "W1", transaction_event_code: "T0400", transaction_initiation_date: "2026-05-03T00:00:00+0000", transaction_amount: { currency_code: "USD", value: "-145.16" }, transaction_status: "S" } })).toEqual([]);
+    expect(mapPaypalTxn({ transaction_info: { transaction_id: "P1", transaction_event_code: "T0006", transaction_initiation_date: "2026-05-03T00:00:00+0000", transaction_amount: { currency_code: "USD", value: "10.00" }, transaction_status: "P" } })).toEqual([]);
+  });
+  it("Finicity and MX bank transactions", () => {
+    const f = mapFinicityTxn({ id: 805353, amount: -82.15, postedDate: 1772668800, transactionDate: 1772582400, description: "TRACTOR SUPPLY", status: "active", categorization: { normalizedPayeeName: "Tractor Supply", category: "Home Improvement" } });
+    expect(f.amountCents).toBe(-8215n);
+    expect(f.date).toBe("2026-03-04");
+    expect(f.cashDate).toBe("2026-03-05");
+    const m = mapMxTxn({ guid: "TRN-1", amount: 61.5, type: "DEBIT", status: "POSTED", date: "2026-03-05", transacted_at: "2026-03-04T12:00:00Z", description: "Co-op Feed", category: "Livestock" });
+    expect(m.amountCents).toBe(-6150n);
+    expect(m.date).toBe("2026-03-04");
+    expect(mapMxTxn({ guid: "TRN-2", amount: 1200, type: "CREDIT", status: "POSTED", date: "2026-03-06", description: "Sale barn" }).amountCents).toBe(120000n);
+  });
+  it("USDA AMS rows: averages or low/high midpoints", () => {
+    const a = mapAmsRow({ report_date: "10/09/2026", commodity: "Corn", class: "Yellow", avg_price: "4.12", price_unit: "$ Per Bushel", location: "Hutchinson" }, "2886")!;
+    expect(a.priceCents).toBe(412n);
+    expect(a.unit).toBe("bushel");
+    expect(a.asOf).toBe("2026-10-09");
+    const b = mapAmsRow({ report_date: "2026-10-08", commodity: "Feeder Steers", frame: "Medium and Large 1", weight_break_low: 500, weight_break_high: 600, price_min: "330.00", price_max: "350.00", price_unit: "$ Per Cwt" }, "1281")!;
+    expect(b.priceCents).toBe(34000n);
+    expect(b.label).toContain("500-600 lb");
+    expect(mapAmsRow({ report_date: "2026-10-08", commodity: "Corn" }, "x")).toBeNull();
+  });
+  it("Futures: grains quote in cents, cattle in $/cwt", () => {
+    expect(mapBarchartQuote({ symbol: "ZCZ26", lastPrice: 425.25, tradeTimestamp: "2026-10-14T13:20:00-05:00" })).toMatchObject({ symbol: "ZC-FRONT", priceCents: 425n, unit: "bu", asOf: "2026-10-14" });
+    expect(mapBarchartQuote({ symbol: "LEZ26", lastPrice: 231.5 })!.priceCents).toBe(23150n);
+    expect(mapBarchartQuote({ symbol: "XXZ26", lastPrice: 1 })).toBeNull();
+  });
+  it("ERS ARMS ratios become fractions", () => {
+    expect(mapArmsRow({ year: 2024, state: "Kansas", variable_name: "Debt-to-asset ratio", estimate: "12.4", median: "8.0" })).toMatchObject({ metric: "debtToAsset", value: 0.124, median: 0.08, region: "Kansas" });
+    expect(mapArmsRow({ year: 2024, variable_name: "Current ratio", estimate: 2.1 })!.value).toBe(2.1);
+    expect(mapArmsRow({ year: 2024, variable_name: "Net cash farm income", estimate: 1000 })).toBeNull();
   });
 });

@@ -8,11 +8,14 @@
 import {
   emptyBatch, mapPlaidTransaction, mapStripeBalanceTxn, mapSquarePayment, mapQboInvoice, mapQboBill, mapQboCustomer, mapQboVendor,
   mapQboPurchase, mapQboSalesReceipt, mapXeroInvoice, mapFreshbooksInvoice, mapFreshbooksExpense, mapNassPrice,
+  mapPaypalTxn, mapFinicityTxn, mapMxTxn, mapAmsRow, mapBarchartQuote, mapArmsRow, FUTURES,
+  type PaypalTxn, type FinicityTxn, type MxTxn, type AmsRow, type BarchartQuote, type ArmsRow,
   type ExternalBatch, type PlaidTransaction, type StripeBalanceTxn, type SquarePayment, type QboInvoice, type QboBill, type QboParty,
   type QboPurchase, type QboSalesReceipt, type XeroInvoice, type FreshbooksInvoice, type FreshbooksExpense, type NassRow,
 } from "@fl/core";
 
-export type AuthKind = "oauth2" | "plaid_link" | "server_key" | "public" | "file" | "webhook" | "partner";
+export type AuthKind = "oauth2" | "plaid_link" | "connect_url" | "credentials" | "server_key" | "public" | "file" | "webhook" | "partner";
+export type CredentialField = { key: string; label: string; secret?: boolean; placeholder?: string };
 export type Tokens = { accessToken: string; refreshToken?: string; expiresIn?: number; externalAccountId?: string; label?: string };
 export type SyncContext = { accessToken: string; externalAccountId: string | null; cursor: Record<string, unknown>; since: Date; farm: { commodities: string[]; state: string | null } };
 export type Provider = {
@@ -21,6 +24,11 @@ export type Provider = {
   exchange?: (code: string, redirectUri: string, query: Record<string, string>) => Promise<Tokens>;
   refresh?: (refreshToken: string) => Promise<Tokens>;
   sync?: (ctx: SyncContext) => Promise<{ batch: ExternalBatch; cursor?: Record<string, unknown> }>;
+  /** credentials: fields the farm enters (stored sealed, passed to sync as JSON in accessToken). */
+  fields?: CredentialField[];
+  verify?: (creds: Record<string, string>) => Promise<{ label?: string }>;
+  /** connect_url: create the remote user and return the hosted connect page. */
+  connectUrl?: (o: { farmId: string; redirectUri: string; externalAccountId?: string | null }) => Promise<{ url: string; externalAccountId: string }>;
 };
 
 const env = (k: string) => process.env[k] ?? "";
@@ -88,6 +96,30 @@ async function squareToken(body: Record<string, string>): Promise<Tokens> {
   }));
   return { accessToken: t.access_token, refreshToken: t.refresh_token, expiresIn: t.expires_at ? Math.floor((Date.parse(t.expires_at) - Date.now()) / 1000) : undefined, externalAccountId: t.merchant_id };
 }
+
+// ---------- PayPal ----------
+const PAYPAL_BASE = () => (env("PAYPAL_ENVIRONMENT") === "sandbox" ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com");
+async function paypalToken(c: Record<string, string>) {
+  const t = await json<{ access_token: string }>(await fetch(`${PAYPAL_BASE()}/v1/oauth2/token`, {
+    method: "POST", headers: { Authorization: basic(c.clientId ?? "", c.secret ?? ""), "Content-Type": "application/x-www-form-urlencoded" }, body: form({ grant_type: "client_credentials" }),
+  }));
+  return t.access_token;
+}
+
+// ---------- Finicity (Mastercard Open Finance) ----------
+const FINICITY = "https://api.finicity.com";
+async function finicityHeaders() {
+  const h = { "Finicity-App-Key": env("FINICITY_APP_KEY"), "Content-Type": "application/json", Accept: "application/json" };
+  const t = await json<{ token: string }>(await fetch(`${FINICITY}/aggregation/v2/partners/authentication`, { method: "POST", headers: h, body: JSON.stringify({ partnerId: env("FINICITY_PARTNER_ID"), partnerSecret: env("FINICITY_PARTNER_SECRET") }) }));
+  return { ...h, "Finicity-App-Token": t.token };
+}
+
+// ---------- MX ----------
+const MX_BASE = () => (env("MX_ENVIRONMENT") === "production" ? "https://api.mx.com" : "https://int-api.mx.com");
+const mxHeaders = () => ({ Authorization: basic(env("MX_CLIENT_ID"), env("MX_API_KEY")), Accept: "application/vnd.mx.api.v1+json", "Content-Type": "application/json" });
+
+// ---------- USDA AMS Market News ----------
+const AMS_BASE = "https://marsapi.ams.usda.gov/services/v1.2/reports";
 
 export const PROVIDERS: Provider[] = [
   {
@@ -211,6 +243,116 @@ export const PROVIDERS: Provider[] = [
       }
       return { batch: b };
     },
+  },
+  {
+    key: "paypal", name: "PayPal", category: "Payments", phase: 2, auth: "credentials", env: [],
+    fields: [{ key: "clientId", label: "Client ID" }, { key: "secret", label: "Secret", secret: true }],
+    pulls: "Direct-to-consumer sales, refunds, and fees", docs: "https://developer.paypal.com/docs/api/transaction-search/v1/",
+    verify: async (c) => { await paypalToken(c); return { label: "PayPal" }; },
+    sync: async (ctx) => {
+      const token = await paypalToken(JSON.parse(ctx.accessToken) as Record<string, string>);
+      const b = emptyBatch();
+      // Transaction Search returns at most 31 days per request and three years of history.
+      const floor = Date.now() - 3 * 365 * 86_400_000;
+      for (let from = Math.max(ctx.since.getTime(), floor); from < Date.now(); from += 31 * 86_400_000) {
+        const to = Math.min(from + 31 * 86_400_000 - 1000, Date.now());
+        for (let page = 1; page <= 100; page++) {
+          const r = await json<{ transaction_details: PaypalTxn[]; total_pages: number }>(await fetch(`${PAYPAL_BASE()}/v1/reporting/transactions?${qs({ start_date: new Date(from).toISOString(), end_date: new Date(to).toISOString(), fields: "transaction_info,payer_info", page_size: "500", page: String(page) })}`, { headers: { Authorization: `Bearer ${token}` } }));
+          for (const t of r.transaction_details ?? []) b.txns.push(...mapPaypalTxn(t));
+          if (page >= (r.total_pages ?? 1)) break;
+        }
+      }
+      return { batch: b };
+    },
+  },
+  {
+    key: "finicity", name: "Bank Accounts (Finicity)", category: "Banking", phase: 2, auth: "connect_url", env: ["FINICITY_PARTNER_ID", "FINICITY_PARTNER_SECRET", "FINICITY_APP_KEY"],
+    pulls: "Checking, savings, and card transactions (Mastercard Open Finance)", docs: "https://developer.mastercard.com/open-finance-us/documentation/",
+    connectUrl: async ({ farmId, redirectUri, externalAccountId }) => {
+      const h = await finicityHeaders();
+      const kind = env("FINICITY_ENV") === "testing" ? "testing" : "active";
+      const id = externalAccountId ?? (await json<{ id: string }>(await fetch(`${FINICITY}/aggregation/v2/customers/${kind}`, { method: "POST", headers: h, body: JSON.stringify({ username: `acreflow-${farmId.slice(0, 8)}-${Date.now()}`, firstName: "Acreflow", lastName: "Farm" }) }))).id;
+      const g = await json<{ link: string }>(await fetch(`${FINICITY}/connect/v2/generate`, { method: "POST", headers: h, body: JSON.stringify({ partnerId: env("FINICITY_PARTNER_ID"), customerId: id, redirectUri }) }));
+      return { url: g.link, externalAccountId: id };
+    },
+    sync: async (ctx) => {
+      const h = await finicityHeaders();
+      const b = emptyBatch();
+      const from = Math.floor(ctx.since.getTime() / 1000), to = Math.floor(Date.now() / 1000);
+      for (let start = 1; start < 100_000; start += 1000) {
+        const r = await json<{ transactions: FinicityTxn[]; moreAvailable?: boolean }>(await fetch(`${FINICITY}/aggregation/v3/customers/${ctx.externalAccountId}/transactions?${qs({ fromDate: String(from), toDate: String(to), start: String(start), limit: "1000" })}`, { headers: h }));
+        b.txns.push(...r.transactions.map(mapFinicityTxn));
+        if (!r.moreAvailable) break;
+      }
+      return { batch: b };
+    },
+  },
+  {
+    key: "mx", name: "Bank Accounts (MX)", category: "Banking", phase: 2, auth: "connect_url", env: ["MX_CLIENT_ID", "MX_API_KEY"],
+    pulls: "Checking, savings, and card transactions (MX Platform)", docs: "https://docs.mx.com/api-reference/platform-api/reference/list-transactions/",
+    connectUrl: async ({ farmId, externalAccountId }) => {
+      const guid = externalAccountId ?? (await json<{ user: { guid: string } }>(await fetch(`${MX_BASE()}/users`, { method: "POST", headers: mxHeaders(), body: JSON.stringify({ user: { metadata: JSON.stringify({ farmId }) } }) }))).user.guid;
+      const w = await json<{ widget_url: { url: string } }>(await fetch(`${MX_BASE()}/users/${guid}/widget_urls`, { method: "POST", headers: mxHeaders(), body: JSON.stringify({ widget_url: { widget_type: "connect_widget" } }) }));
+      return { url: w.widget_url.url, externalAccountId: guid };
+    },
+    sync: async (ctx) => {
+      const b = emptyBatch();
+      for (let page = 1; page <= 500; page++) {
+        const r = await json<{ transactions: MxTxn[]; pagination: { current_page: number; total_pages: number } }>(await fetch(`${MX_BASE()}/users/${ctx.externalAccountId}/transactions?${qs({ from_date: ctx.since.toISOString().slice(0, 10), page: String(page), records_per_page: "100" })}`, { headers: mxHeaders() }));
+        b.txns.push(...r.transactions.map(mapMxTxn));
+        if (page >= r.pagination.total_pages) break;
+      }
+      return { batch: b };
+    },
+  },
+  {
+    key: "usda_ams", name: "USDA AMS Market News", category: "Market Data", phase: 2, auth: "credentials", env: ["USDA_AMS_API_KEY"],
+    fields: [{ key: "reports", label: "Report IDs", placeholder: "e.g. 2886, 1281" }],
+    pulls: "Local cash grain bids and livestock auction prices from the reports you pick", docs: "https://mymarketnews.ams.usda.gov/mymarketnews-api",
+    verify: async (c) => {
+      const ids = (c.reports ?? "").split(/[\s,]+/).filter(Boolean);
+      if (!ids.length) throw new Error("Enter at least one report ID");
+      return { label: `Reports ${ids.join(", ")}` };
+    },
+    sync: async (ctx) => {
+      const b = emptyBatch();
+      const ids = String((JSON.parse(ctx.accessToken) as Record<string, string>).reports ?? "").split(/[\s,]+/).filter(Boolean);
+      for (const id of ids) {
+        const r = await json<{ results?: AmsRow[] }>(await fetch(`${AMS_BASE}/${encodeURIComponent(id)}?${qs({ lastReports: "5" })}`, { headers: { Authorization: basic(env("USDA_AMS_API_KEY"), "") } }));
+        for (const row of r.results ?? []) { const p = mapAmsRow(row, id); if (p) b.prices.push(p); }
+      }
+      return { batch: b };
+    },
+  },
+  {
+    key: "usda_ers", name: "USDA ERS Benchmarks", category: "Market Data", phase: 2, auth: "server_key", env: ["USDA_ERS_API_KEY"],
+    pulls: "ARMS farm business ratios for peer comparison on Health", docs: "https://www.ers.usda.gov/developer/data-apis/arms-data-api",
+    sync: async (ctx) => {
+      const b = emptyBatch();
+      const year = new Date().getUTCFullYear();
+      const get = (state: string) => fetch(`https://api.ers.usda.gov/data/arms/surveydata?${qs({ api_key: env("USDA_ERS_API_KEY"), year: [year - 3, year - 2, year - 1].join(","), state, report: "farm business financial ratios", farmtype: "farm businesses" })}`).then((r) => json<{ data?: ArmsRow[] }>(r));
+      // State-level ARMS estimates exist for the major farm states only; fall back to the US.
+      let rows = ctx.farm.state ? (await get(ctx.farm.state.toLowerCase())).data ?? [] : [];
+      if (!rows.length) rows = (await get("all")).data ?? [];
+      for (const row of rows) { const m = mapArmsRow(row); if (m) b.benchmarks.push(m); }
+      return { batch: b };
+    },
+  },
+  {
+    key: "futures", name: "Futures Prices (Barchart)", category: "Market Data", phase: 2, auth: "server_key", env: ["BARCHART_API_KEY"],
+    pulls: "Front-month CME, CBOT, and ICE settlements for the farm's commodities", docs: "https://www.barchart.com/ondemand/api/getQuote",
+    sync: async (ctx) => {
+      const b = emptyBatch();
+      const roots = [...new Set(ctx.farm.commodities.map((c) => (c === "CATTLE" ? ["CATTLE", "FEEDERS"] : [c])).flat().map((c) => FUTURES[c]?.root).filter(Boolean))];
+      if (!roots.length) return { batch: b };
+      const r = await json<{ results?: BarchartQuote[] }>(await fetch(`https://ondemand.websol.barchart.com/getQuote.json?${qs({ apikey: env("BARCHART_API_KEY"), symbols: roots.map((x) => `${x}*1`).join(",") })}`));
+      for (const q of r.results ?? []) { const p = mapBarchartQuote(q); if (p) b.prices.push(p); }
+      return { batch: b };
+    },
+  },
+  {
+    key: "perplexity", name: "Perplexity", category: "AI", phase: 3, auth: "server_key", env: ["PERPLEXITY_API_KEY"],
+    pulls: "Web market research for the assistant (market questions only, never farm figures)", docs: "https://docs.perplexity.ai/api-reference/chat-completions-post",
   },
   { key: "nws", name: "Weather Forecast (NWS)", category: "Weather", phase: 2, auth: "public", env: [], pulls: "7-day forecast for the farm's coordinates", docs: "https://www.weather.gov/documentation/services-web-api" },
   { key: "webhook", name: "Zapier / Webhook", category: "Farm Software", phase: 2, auth: "webhook", env: [], pulls: "Records pushed from Farmbrite or any Zapier-connected app", docs: "docs/INTEGRATIONS.md" },

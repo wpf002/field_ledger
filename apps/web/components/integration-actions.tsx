@@ -20,11 +20,14 @@ const loadPlaid = () => new Promise<void>((ok, fail) => {
 });
 
 /** Connect / sync / remove buttons for one provider card. */
-export function IntegrationActions({ farmId, provider, auth, connectionId, canConnect }: { farmId: string; provider: string; auth: string; connectionId?: string; canConnect: boolean }) {
+export type CredField = { key: string; label: string; secret?: boolean; placeholder?: string };
+
+export function IntegrationActions({ farmId, provider, auth, connectionId, canConnect, fields }: { farmId: string; provider: string; auth: string; connectionId?: string; canConnect: boolean; fields?: CredField[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [coords, setCoords] = useState({ lat: "", lon: "" });
+  const [creds, setCreds] = useState<Record<string, string>>({});
   const run = async (fn: () => Promise<unknown>) => { setBusy(true); setMsg(null); try { await fn(); router.refresh(); } catch (e) { setMsg(e instanceof Error ? e.message : "Failed"); } finally { setBusy(false); } };
   const btn = "rounded-btn px-3 py-1.5 text-sm disabled:opacity-50";
 
@@ -48,8 +51,26 @@ export function IntegrationActions({ farmId, provider, auth, connectionId, canCo
       </form>
     );
   }
+  if (auth === "credentials" && fields?.length) {
+    return (
+      <form className="flex w-full flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); run(() => call(`/farms/${farmId}/integrations/${provider}/credentials`, { method: "POST", body: JSON.stringify(creds) })); }}>
+        <div className="flex min-w-0 flex-1 gap-2">
+          {fields.map((f) => (
+            <input key={f.key} type={f.secret ? "password" : "text"} autoComplete="off" value={creds[f.key] ?? ""} onChange={(e) => setCreds({ ...creds, [f.key]: e.target.value })} placeholder={f.placeholder ?? f.label} aria-label={f.label} className="input min-w-0 flex-1" />
+          ))}
+        </div>
+        <button disabled={busy} className={`${btn} shrink-0 bg-primary text-white hover:bg-primary-deep`}>Connect</button>
+        {msg && <span className="w-full text-xs text-negative">{msg}</span>}
+      </form>
+    );
+  }
   const connect = () => run(async () => {
-    if (auth === "plaid_link") {
+    if (auth === "connect_url") {
+      const { url } = await call(`/farms/${farmId}/integrations/${provider}/connect-url`, { method: "POST", body: "{}" });
+      window.location.href = url;
+    } else if (auth === "server_key") {
+      await call(`/farms/${farmId}/integrations/${provider}/enable`, { method: "POST", body: "{}" });
+    } else if (auth === "plaid_link") {
       const { linkToken } = await call(`/farms/${farmId}/integrations/plaid/link-token`, { method: "POST", body: "{}" });
       await loadPlaid();
       window.Plaid!.create({ token: linkToken, onSuccess: (publicToken, meta) => run(() => call(`/farms/${farmId}/integrations/plaid/exchange`, { method: "POST", body: JSON.stringify({ publicToken, institution: meta.institution?.name }) })) }).open();

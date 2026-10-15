@@ -81,6 +81,8 @@ model Farm {
   ForecastRun           ForecastRun[]
   Connection            Connection[]
   ApiToken              ApiToken[]
+  MarketingContract     MarketingContract[]
+  Benchmark             Benchmark[]
 }
 
 enum Role {
@@ -1044,4 +1046,46 @@ model OAuthRefresh {
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime  @default(now())
+}
+
+/// Grain and livestock marketing contracts (spec §23): what's already sold or priced ahead of delivery.
+model MarketingContract {
+  id            String    @id @default(uuid())
+  farm          Farm      @relation(fields: [farmId], references: [id])
+  farmId        String
+  externalId    String?
+  number        String?
+  commodity     String // matches CropSeason.crop's first word: Corn, Soybeans, Wheat, Cotton, Hay, Cattle
+  cropYear      Int
+  type          String // forward | hta | basis | min_price | delayed_price
+  quantity      Decimal   @db.Decimal(16, 4)
+  unit          String
+  price         Decimal?  @db.Decimal(16, 4) // flat or futures price per unit; null until priced (basis contracts)
+  basis         Decimal?  @db.Decimal(16, 4)
+  buyer         String?
+  deliveryStart DateTime?
+  deliveryEnd   DateTime?
+  delivered     Decimal   @default(0) @db.Decimal(16, 4)
+  status        String    @default("open") // open | delivered | cancelled
+  notes         String?
+  createdAt     DateTime  @default(now())
+
+  @@index([farmId, cropYear])
+}
+
+/// Peer benchmarks (USDA ERS ARMS) for comparing the farm's ratios.
+model Benchmark {
+  id       String  @id @default(uuid())
+  farm     Farm    @relation(fields: [farmId], references: [id])
+  farmId   String
+  source   String // usda_ers
+  year     Int
+  region   String
+  farmType String?
+  metric   String // currentRatio | debtToAsset | returnOnAssets | operatingProfitMargin | ...
+  label    String
+  value    Float
+  median   Float?
+
+  @@unique([farmId, source, year, region, metric])
 }

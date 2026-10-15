@@ -1,4 +1,3 @@
-import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { StatCard } from "@/components/ui/stat-card";
 import { LinkTabs } from "@/components/ui/link-tabs";
@@ -13,9 +12,8 @@ const CROPS = (c: string) => c.startsWith("Crops") || c === "Growing crops";
 
 /** Inventory from month-end snapshots: quantity, cost basis, market value, exposure. */
 export async function InventorySnapshotView({ farmId, asOf, shock }: { farmId: string; asOf: Date; shock: number }) {
-  const [snaps, seasons] = await Promise.all([
+  const [snaps] = await Promise.all([
     prisma.inventorySnapshot.findMany({ where: { farmId, asOf }, include: {}, orderBy: [{ category: "asc" }, { item: "asc" }] }),
-    prisma.cropSeason.findMany({ where: { farmId, year: asOf.getUTCFullYear() } }),
   ]);
   const ents = new Map((await prisma.enterprise.findMany({ where: { farmId } })).map((e) => [e.id, e.name]));
   const value = (s: (typeof snaps)[number]) => (s.bsValuation === "cost" ? s.costBasisCents : s.marketValueCents);
@@ -25,15 +23,6 @@ export async function InventorySnapshotView({ farmId, asOf, shock }: { farmId: s
   const marketed = snaps.filter((s) => s.bsValuation === "market");
   const exposure = inventoryExposure(marketed.map((s) => ({ label: s.item, marketValueCents: s.marketValueCents })), -shock);
   const exposureTotal = sumCents(exposure.map((e) => e.shockCents));
-
-  // Commodity exposure for this year's crops: production vs. sold vs. still unpriced in storage.
-  const production = seasons.filter((s) => s.totalProduction != null || (s.expectedYield != null)).map((s) => {
-    const prod = Number(s.totalProduction ?? Number(s.expectedYield ?? 0) * Number(s.acres));
-    const sold = Number(s.qtySold ?? 0);
-    return { crop: s.crop, unit: (s.yieldUnit ?? "").replace("/ac", ""), prod, sold, open: Math.max(0, prod - sold), harvested: s.totalProduction != null };
-  });
-  const byCrop = new Map<string, { crop: string; unit: string; prod: number; sold: number; open: number }>();
-  for (const p of production) { const c = byCrop.get(p.crop) ?? { crop: p.crop, unit: p.unit, prod: 0, sold: 0, open: 0 }; c.prod += p.prod; c.sold += p.sold; c.open += p.open; byCrop.set(p.crop, c); }
 
   return (
     <>
@@ -69,22 +58,6 @@ export async function InventorySnapshotView({ farmId, asOf, shock }: { farmId: s
         </tbody>
       </Table>
 
-      {byCrop.size > 0 && (
-        <Card className="mt-6 p-6">
-          <h3 className="font-serif text-lg font-semibold text-ink">Crop Marketing {asOf.getUTCFullYear()}</h3>
-          <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
-            <thead><tr><Th>Crop</Th><Th right>Production</Th><Th right>Sold</Th><Th right>Unpriced</Th><Th right>Exposed</Th></tr></thead>
-            <tbody>
-              {[...byCrop.values()].map((c) => (
-                <tr key={c.crop} className="border-t border-border">
-                  <Td strong>{c.crop}</Td><Td right>{num(c.prod)} <span className="text-xs text-muted">{c.unit}</span></Td><Td right>{num(c.sold)}</Td><Td right>{num(c.open)}</Td>
-                  <Td right strong className={c.prod && c.open / c.prod > 0.4 ? "text-rust" : ""}>{c.prod ? `${Math.round((c.open / c.prod) * 100)}%` : "–"}</Td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
-        </Card>
-      )}
     </>
   );
 }

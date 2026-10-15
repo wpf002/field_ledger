@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { getDemoFarmId } from "@/lib/data";
 import { getFinancialSnapshot } from "@/lib/snapshot";
+import { prisma } from "@fl/db";
 import { fmtDate } from "@/lib/format";
 import type { HealthStatus } from "@fl/core";
 
@@ -18,6 +19,18 @@ export default async function HealthPage() {
   const farmId = await getDemoFarmId();
   const s = await getFinancialSnapshot(farmId);
   const { health, ratios, bs } = s;
+  // USDA ERS peer ratios (latest year synced), shown under the matching row.
+  const bench = await prisma.benchmark.findMany({ where: { farmId }, orderBy: { year: "desc" } });
+  const peerYear = bench[0]?.year;
+  const PEER: Record<string, [string, "ratio" | "pct"]> = {
+    "Current Ratio": ["currentRatio", "ratio"], "Debt to Equity": ["debtToEquity", "ratio"], "Operating Margin": ["operatingProfitMargin", "pct"],
+    "Debt to Assets (Market)": ["debtToAsset", "pct"], "Return on Assets (Market)": ["returnOnAssets", "pct"], "Return on Equity": ["returnOnEquity", "pct"],
+    "Depreciation Expense Ratio": ["depreciationExpenseRatio", "pct"], "Interest Expense Ratio": ["interestExpenseRatio", "pct"],
+  };
+  const peer = (label: string) => {
+    const m = PEER[label]; const b = m && bench.find((x) => x.year === peerYear && x.metric === m[0]);
+    return b ? `${b.region === "all" || b.region === "All" ? "US" : b.region} peers ${fmt(b.value, m[1])}` : undefined;
+  };
 
   const liquidity: [string, React.ReactNode][] = [
     ["Current Assets", <Money key="a" cents={bs.totalCurrentAssetsCents} />],
@@ -72,20 +85,23 @@ export default async function HealthPage() {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <Section title="Liquidity" rows={liquidity} />
+        <Section title="Liquidity" rows={liquidity} peer={peer} />
         <Section title="Repayment" rows={repayment} />
-        <Section title="Ratios" rows={detail} />
+        <Section title="Ratios" rows={detail} peer={peer} />
       </div>
     </>
   );
 }
 
-function Section({ title, rows }: { title: string; rows: [string, React.ReactNode][] }) {
+function Section({ title, rows, peer }: { title: string; rows: [string, React.ReactNode][]; peer?: (label: string) => string | undefined }) {
   return (
     <Card className="p-6">
       <h3 className="font-serif text-lg font-semibold text-ink">{title}</h3>
       <dl className="mt-3 divide-y divide-border text-sm">
-        {rows.map(([k, v]) => <div key={k} className="flex justify-between gap-4 py-2"><dt className="text-muted">{k}</dt><dd className="tabular-nums text-ink">{v}</dd></div>)}
+        {rows.map(([k, v]) => {
+          const p = peer?.(k);
+          return <div key={k} className="flex justify-between gap-4 py-2"><dt className="text-muted">{k}</dt><dd className="text-right tabular-nums text-ink">{v}{p && <span className="block text-xs text-muted">{p}</span>}</dd></div>;
+        })}
       </dl>
     </Card>
   );

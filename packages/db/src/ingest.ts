@@ -7,7 +7,7 @@ import { categoryToScheduleF, inferScheduleFCode, type ExternalBatch } from "@fl
  * already imported is updated (balances, paid status), never duplicated.
  */
 export async function applyExternalBatch(prisma: PrismaClient, farmId: string, source: string, batch: ExternalBatch) {
-  const counts = { parties: 0, invoices: 0, bills: 0, transactions: 0, skipped: 0, prices: 0 };
+  const counts = { parties: 0, invoices: 0, bills: 0, transactions: 0, skipped: 0, prices: 0, benchmarks: 0 };
   const accounts = await prisma.account.findMany({ where: { farmId } });
   const bySf = new Map<string, string>();
   for (const a of accounts) if (a.scheduleFCode && !bySf.has(a.scheduleFCode)) bySf.set(a.scheduleFCode, a.id);
@@ -75,8 +75,16 @@ export async function applyExternalBatch(prisma: PrismaClient, farmId: string, s
   }
 
   for (const p of batch.prices) {
-    await prisma.commodityPrice.create({ data: { symbol: p.symbol, label: p.label, unit: p.unit, priceCents: p.priceCents, source: p.source, asOf: new Date(`${p.asOf}T00:00:00Z`) } });
+    // One quote per symbol and day; a re-sync doesn't stack duplicates.
+    const asOf = new Date(`${p.asOf}T00:00:00Z`);
+    if (await prisma.commodityPrice.findFirst({ where: { symbol: p.symbol, asOf }, select: { id: true } })) continue;
+    await prisma.commodityPrice.create({ data: { symbol: p.symbol, label: p.label, unit: p.unit, priceCents: p.priceCents, source: p.source, asOf } });
     counts.prices++;
+  }
+  for (const b of batch.benchmarks ?? []) {
+    const key = { farmId, source, year: b.year, region: b.region, metric: b.metric };
+    await prisma.benchmark.upsert({ where: { farmId_source_year_region_metric: key }, update: { label: b.label, value: b.value, median: b.median, farmType: b.farmType }, create: { ...key, label: b.label, value: b.value, median: b.median, farmType: b.farmType } });
+    counts.benchmarks++;
   }
   if (counts.transactions || counts.invoices) {
     await prisma.auditLog.create({ data: { farmId, action: "import", entity: "Integration", entityId: source, after: counts } });

@@ -6,7 +6,7 @@
  */
 import { prisma, pnlWhere } from "@fl/db";
 import {
-  forecastContext, generateInsights, generateBrief, loadEnterpriseInputs, runWhatIf, SCENARIO_KEYS,
+  forecastContext, generateInsights, generateBrief, loadEnterpriseInputs, runWhatIf, SCENARIO_KEYS, loadCommodityExposure,
 } from "@fl/db";
 import {
   balanceSheetAt, incomeStatement, enterpriseStatements, cropEconomics, headEconomics, financialRatios, ratioInputsFor,
@@ -252,6 +252,7 @@ export const TOOL_TIER: Record<string, ToolTier> = {
   schedule_f: "read", alerts: "read", cash_position: "read", enterprise_profitability: "read", crop_profitability: "read",
   livestock_profitability: "read", debt_summary: "read", inventory_position: "read", accounts_receivable: "read", financial_health: "read",
   insights: "analyze", financial_brief: "analyze", cash_forecast: "analyze", run_scenario: "analyze",
+  commodity_exposure: "read", market_research: "analyze",
 };
 Object.assign(LEDGER_TOOLS, {
   cash_position: (f: string) => cashPosition(f),
@@ -267,3 +268,37 @@ Object.assign(LEDGER_TOOLS, {
   financial_brief: (f: string, i?: Record<string, unknown>) => financialBrief(f, i),
   run_scenario: (f: string, i?: Record<string, unknown>) => runScenario(f, i),
 });
+
+/** Expected production vs. sold, contracted, and unpriced by commodity, with open contracts. */
+async function commodityExposureTool(farmId: string) {
+  const x = await loadCommodityExposure(prisma, farmId);
+  return {
+    asOf: x.asOf.toISOString().slice(0, 10),
+    commodities: x.rows.map((r) => ({ ...r, exposedPct: r.exposedPct == null ? null : Math.round(r.exposedPct * 1000) / 10, nextDelivery: r.nextDelivery?.toISOString().slice(0, 10) ?? null })),
+    openContracts: x.contracts.filter((c) => c.status === "open").map((c) => ({ ...c, deliveryStart: c.deliveryStart?.toISOString().slice(0, 10) ?? null, deliveryEnd: c.deliveryEnd?.toISOString().slice(0, 10) ?? null })),
+  };
+}
+
+/**
+ * Web market research through Perplexity (spec "AI integrations"). Only the model's
+ * market question leaves Acreflow; the tool description tells it never to include
+ * the farm's own figures.
+ */
+export const marketResearchEnabled = () => !!process.env.PERPLEXITY_API_KEY;
+async function marketResearch(_farmId: string, input?: Record<string, unknown>) {
+  if (!marketResearchEnabled()) return { error: "Market research isn't set up." };
+  const question = String(input?.question ?? "").slice(0, 500);
+  if (!question) return { error: "A question is required." };
+  const res = await fetch("https://api.perplexity.ai/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: process.env.PERPLEXITY_MODEL || "sonar", messages: [
+      { role: "system", content: "Answer agricultural market questions with current figures, dates, and locations. Be brief." },
+      { role: "user", content: question },
+    ] }),
+  });
+  if (!res.ok) return { error: `Market research failed (${res.status})` };
+  const j = (await res.json()) as { choices?: { message?: { content?: string } }[]; citations?: string[]; search_results?: { url: string }[] };
+  return { answer: j.choices?.[0]?.message?.content ?? "", sources: j.citations ?? j.search_results?.map((s) => s.url) ?? [] };
+}
+Object.assign(LEDGER_TOOLS, { commodity_exposure: commodityExposureTool, market_research: marketResearch });
