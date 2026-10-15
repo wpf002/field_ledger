@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { readWorkbook, toDate, toCents, centsOrNull, str, num, int, bool, type Row, type Cell } from "./workbook.js";
 import { DATASET_SCHEDULE_F, kindForSection, SIGN } from "./accounts.js";
+import { DATASET_LEVERS } from "./levers.js";
 
 /**
  * Imports one test-farm workbook as a farm. Idempotent: an existing farm with the
@@ -334,7 +335,7 @@ export async function importTestFarm(prisma: PrismaClient, path: string): Promis
   // ---------- plans, assumptions, references ----------
   await prisma.enterpriseBudget.createMany({
     data: t("Budget_vs_Actual").map((r) => ({
-      farmId, year: req(int(r.year), "year"), enterpriseId: r.enterprise_id === "TOTAL" ? null : E(r.enterprise_id),
+      farmId, year: req(int(r.year), "year"), period: str(r.period) ?? "Full year", enterpriseId: r.enterprise_id === "TOTAL" ? null : E(r.enterprise_id),
       plannedRevenueCents: toCents(r.planned_revenue), plannedExpensesCents: toCents(r.planned_expenses), plannedNetIncomeCents: toCents(r.planned_net_income),
     })),
   });
@@ -351,6 +352,8 @@ export async function importTestFarm(prisma: PrismaClient, path: string): Promis
     data: t("Scenario_Levers").map((r) => ({
       farmId, externalId: str(r.lever_id), question: str(r.decision_question) ?? "", driver: str(r.driver) ?? "", baseValue: str(r.base_value),
       scenarioChange: str(r.scenario_change), estimatedImpact: num(r.estimated_annual_impact), impactUnit: str(r.impact_unit), basis: str(r.calculation_basis),
+      template: DATASET_LEVERS[String(r.lever_id)]?.template ?? "manual",
+      params: (DATASET_LEVERS[String(r.lever_id)]?.params ?? { impact: num(r.estimated_annual_impact), basis: str(r.calculation_basis) }) as Prisma.InputJsonObject,
     })),
   });
   await prisma.insightReference.createMany({

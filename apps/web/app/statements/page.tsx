@@ -222,6 +222,32 @@ export default async function StatementsPage({ searchParams }: { searchParams: P
             {a.balanceCheckCents === 0n ? "Balanced" : <>Out of balance by <Money cents={a.balanceCheckCents} className="text-xs" /></>}
           </p>
         </Card>
+        <Card className="h-fit p-6 xl:col-start-2">
+          <h3 className="font-serif text-lg font-semibold text-ink">Net Worth Split</h3>
+          {(() => {
+            const landEquity = a.landMarketCents - a.landLoansCents;
+            const operating = a.marketNetWorthCents - landEquity;
+            const parts: [string, bigint][] = [
+              ["Land Equity (Market)", landEquity],
+              ["Operating Business", operating],
+            ];
+            const detail: [string, bigint][] = [
+              ["Livestock & Inventory", a.breedingLivestockCents + a.marketLivestockCents + a.cropInventoryCents + a.feedCents + a.growingCropsCents + a.suppliesCents],
+              ["Machinery, Vehicles & Buildings", a.machineryCents + a.vehiclesCents + a.buildingsCents],
+              ["Cash & Receivables", a.cashCents + a.arCents + a.prepaidCents],
+              ["Non-Land Debt & Payables", -(a.totalLiabilitiesCents - a.landLoansCents)],
+            ];
+            return (
+              <dl className="mt-4 space-y-2 text-sm">
+                {parts.map(([k, v]) => <div key={k} className="flex justify-between font-medium"><dt className="text-ink">{k}</dt><dd><Money cents={v} /></dd></div>)}
+                <div className="space-y-1 border-t border-border pt-2">
+                  {detail.map(([k, v]) => <div key={k} className="flex justify-between text-xs"><dt className="text-muted">{k}</dt><dd><Money cents={v} className="text-xs" /></dd></div>)}
+                </div>
+                <div className="flex justify-between border-t border-border pt-2 font-semibold"><dt className="text-ink">Net Worth at Market</dt><dd><Money cents={a.marketNetWorthCents} /></dd></div>
+              </dl>
+            );
+          })()}
+        </Card>
       </div>
     );
   } else {

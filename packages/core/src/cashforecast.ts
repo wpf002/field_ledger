@@ -41,6 +41,8 @@ export type ForecastInputs = {
   line: LineTerms | null;
   reserveCents: bigint;         // minimum cash target
   drivers: Drivers;
+  /** What-if events: extra cash items, and monthly P&L costs (positive cents = cost). */
+  extra?: { items?: CashItem[]; monthlyCostCents?: bigint; monthlyRevenueCents?: bigint };
 };
 
 const revFactor = (d: Drivers, ent: string | null | undefined) => {
@@ -196,7 +198,7 @@ export function profitForecast(rows: StatementRow[], assets: AssetRec[], loans: 
 
 export function twelveMonthForecast(inp: ForecastInputs & { rows: (StatementRow & { expectedCashDate?: Date | null; description?: string })[]; loans: (LoanRec & { name?: string })[] }): MonthForecast[] {
   const end = monthEnd(inp.asOf.getUTCFullYear(), inp.asOf.getUTCMonth() + 12);
-  const items = [...openItemFlows(inp.rows, inp.asOf, end), ...scheduledDebtFlows(inp.loans, inp.asOf, end), ...operatingPlanFlows(inp.rows, inp.asOf, end, inp.drivers)];
+  const items = [...openItemFlows(inp.rows, inp.asOf, end), ...scheduledDebtFlows(inp.loans, inp.asOf, end), ...operatingPlanFlows(inp.rows, inp.asOf, end, inp.drivers), ...(inp.extra?.items ?? [])];
   const periods = Array.from({ length: 12 }, (_, i) => ({ start: monthEnd(inp.asOf.getUTCFullYear(), inp.asOf.getUTCMonth() + i), end: monthEnd(inp.asOf.getUTCFullYear(), inp.asOf.getUTCMonth() + i + 1) }));
   const rate = inp.line?.ratePct ?? 0;
   const cash = rollCash(items, periods, inp.cashCents, inp.line, inp.reserveCents, (b) => scale(b, rate / 100 / 12));
@@ -204,7 +206,10 @@ export function twelveMonthForecast(inp: ForecastInputs & { rows: (StatementRow 
   return cash.map((c, i) => {
     const p = pnl[i]!;
     // Line interest is a forecast cost too.
-    const withLine = fromSections({ REV: p.revenueCents, XFER: p.transfersCents, COP: -p.copCents, OVH: -p.overheadCents, DEP: -p.depreciationCents, INT: -(p.interestCents + c.lineInterestCents) });
+    const withLine = fromSections({
+      REV: p.revenueCents + (inp.extra?.monthlyRevenueCents ?? 0n), XFER: p.transfersCents, COP: -p.copCents,
+      OVH: -(p.overheadCents + (inp.extra?.monthlyCostCents ?? 0n)), DEP: -p.depreciationCents, INT: -(p.interestCents + c.lineInterestCents),
+    });
     return { monthEnd: c.end, pnl: withLine, cash: c };
   });
 }

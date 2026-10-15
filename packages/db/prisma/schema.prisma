@@ -775,6 +775,7 @@ model EnterpriseBudget {
   farm                  Farm    @relation(fields: [farmId], references: [id])
   farmId                String
   year                  Int
+  period                String  @default("Full year") // Full year | YTD Jan-Sep | Full-year budget (reference)
   enterpriseId          String? // null = TOTAL
   plannedRevenueCents   BigInt
   plannedExpensesCents  BigInt
@@ -817,6 +818,8 @@ model ScenarioLever {
   estimatedImpact Decimal? @db.Decimal(16, 2)
   impactUnit      String?
   basis           String?
+  template        String? // calculator used by the scenario engine (see @fl/db levers)
+  params          Json?
 }
 
 model SemenEvent {

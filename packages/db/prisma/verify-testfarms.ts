@@ -3,6 +3,7 @@ import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { balanceSheetAt, cashFlowReport, incomeStatement, financialRatios, ratioInputsFor, periodFor, enterpriseStatements, cropEconomics, headEconomics, openItemFlows, scheduledDebtFlows, twelveMonthForecast, DEFAULT_SCENARIOS, type BalanceSheet, type IncomeStatement, type Ratios } from "@fl/core";
 import { loadEnterpriseInputs } from "../src/enterprise-inputs.js";
+import { evaluateLever, leverContext, type LeverTemplate } from "../src/levers.js";
 import { prisma } from "../src/index.js";
 import { loadStatementInputs } from "../src/statement-inputs.js";
 import { readWorkbook, toCents, toDate, type Row } from "../src/testfarms/workbook.js";
@@ -216,6 +217,27 @@ async function verifyFarm(file: string): Promise<Result[]> {
   const pctOff = (x: bigint, y: bigint) => (y === 0n ? "n/a" : `${((Number(x - y) / Math.abs(Number(y))) * 100).toFixed(1)}%`);
   forecastNotes.push(`${bizId}: revenue ${pctOff(sumF("revenueCents"), tot("revenue"))}, production costs ${pctOff(sumF("copCents"), tot("cost_of_production"))}, overhead ${pctOff(sumF("overheadCents"), tot("overhead"))} vs workbook base`);
 
+  // Budget vs actual: actual revenue, expenses (COP + overhead + depreciation + interest), and net by enterprise.
+  const bvRes: Result = { check: "Budget vs actual (actuals)", compared: 0, failures: [] };
+  for (const row of (tables.Budget_vs_Actual ?? []).filter((r) => r.period !== "Full-year budget (reference)")) {
+    const y = Number(row.year), r = yearRange(y);
+    const st = row.enterprise_id === "TOTAL" ? incomeStatement(inputs.rows, r.from, r.to) : enterpriseStatements(inputs.rows, r.from, r.to).get(entByExt.get(String(row.enterprise_id)) ?? "?");
+    const L = `${y} ${row.enterprise_id}`;
+    cmp(bvRes, `${L} actual_revenue`, toCents(row.actual_revenue), st?.revenueCents ?? 0n);
+    cmp(bvRes, `${L} actual_expenses`, toCents(row.actual_expenses), st ? st.copCents + st.overheadCents + st.depreciationCents + st.interestCents : 0n);
+    cmp(bvRes, `${L} actual_net_income`, toCents(row.actual_net_income), st ? st.netIncomeOperatingCents - st.gainCents : 0n); // operating basis excludes asset-sale gains
+  }
+  results.push(bvRes);
+
+  // Scenario levers: data-derived levers should land within 5% of the workbook's estimate.
+  const lc = await leverContext(prisma, farm.id);
+  for (const lv of await prisma.scenarioLever.findMany({ where: { farmId: farm.id } })) {
+    const res = evaluateLever(lc, (lv.template ?? "manual") as LeverTemplate, (lv.params ?? {}) as Record<string, unknown>);
+    const exp = Number(lv.estimatedImpact ?? 0), got = res ? Number(res.impactCents) / 100 : NaN;
+    const off = exp ? Math.abs(got - exp) / Math.abs(exp) : Math.abs(got);
+    leverNotes.push({ id: lv.externalId ?? lv.id, template: lv.template ?? "manual", exp, got, ok: Number.isFinite(off) && off <= 0.05 });
+  }
+
   // Sub-ledgers at the cutoff.
   const subRes: Result = { check: "AR, debt, herd flow", compared: 0, failures: [] };
   const cutoff = inputs.cutoff!;
@@ -263,6 +285,7 @@ async function verifyFarm(file: string): Promise<Result[]> {
 }
 
 const forecastNotes: string[] = [];
+const leverNotes: { id: string; template: string; exp: number; got: number; ok: boolean }[] = [];
 const cutoffOf = (d: Date | null) => { if (!d) throw new Error("farm has no report cutoff"); return d; };
 
 async function main() {
@@ -276,6 +299,9 @@ async function main() {
     }
   }
   for (const n of forecastNotes) console.log(`INFO  ${n}`);
+  const fromBooks = leverNotes.filter((l) => l.template !== "manual");
+  console.log(`INFO  scenario levers within 5%: ${leverNotes.filter((l) => l.ok).length}/${leverNotes.length} (from the books: ${fromBooks.filter((l) => l.ok).length}/${fromBooks.length})`);
+  for (const l of leverNotes.filter((x) => !x.ok)) console.log(`        ${l.id} [${l.template}] expected ${l.exp} got ${Number.isFinite(l.got) ? l.got.toFixed(2) : "n/a"}`);
   if (failed) process.exitCode = 1;
 }
 

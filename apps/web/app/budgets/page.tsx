@@ -7,6 +7,7 @@ import { ExpenseBudgets } from "@/components/expense-budgets";
 import { BudgetBar } from "@/components/budget-bar";
 import { SetBudgetButton } from "@/components/set-budget-button";
 import { AddGoalButton } from "@/components/add-goal-button";
+import { EnterprisePlanVsActual } from "@/components/enterprise-plan-vs-actual";
 import { prisma } from "@fl/db";
 import { getDemoFarmId, getCurrentRole, canWrite } from "@/lib/data";
 import { getBudgetStatuses } from "@/lib/budgets";
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
 const monthYear = (date: Date | null) => (date ? fmtMonthYear(date) : "");
 const year = new Date().getUTCFullYear();
 
-export default async function BudgetsPage() {
+export default async function BudgetsPage({ searchParams }: { searchParams: { year?: string } }) {
   const farmId = await getDemoFarmId();
   const canEdit = canWrite(await getCurrentRole());
   const [goals, budgets] = await Promise.all([
@@ -45,6 +46,8 @@ export default async function BudgetsPage() {
         <StatCard label="Over Budget" value={`${overCount}`} sub={overCount === 1 ? "category needs attention" : "categories need attention"} variant={overCount > 0 ? "cream" : "default"} icon={<AlertTriangle size={18} className="text-rust" />} />
         <StatCard label="Financial Goals" value={`${goals.length}`} sub="Active targets" variant="gold" icon={<Target size={18} className="text-gold" />} />
       </div>
+
+      <EnterprisePlanVsActual farmId={farmId} year={searchParams.year} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
         {/* Expense budgets */}

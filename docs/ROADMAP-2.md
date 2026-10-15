@@ -144,6 +144,11 @@ scenario drivers instead of hard-coding them. `verify:testfarms` prints the gaps
 **Acceptance:** each `Scenario_Levers` row reproduces its estimated annual impact
 within 5%.
 
+**Result:** 21 of 25 within 5% (18 of the 22 computed from the books; 3 rest on
+owner assumptions the books can't supply and are stored as estimates). Misses:
+the two forecast-scenario levers (they depend on the workbook's own forecast) and
+two that use the in-progress 2026 hay season.
+
 ## Phase 16 — AI layer (spec §29, §30, AI security model)
 
 **Deliverables**

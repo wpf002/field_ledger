@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
-  LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText, FileSpreadsheet, ReceiptText, Landmark, HeartPulse, Layers, Beef, Map as MapIcon, LineChart,
+  LayoutDashboard, Receipt, DollarSign, Tractor, Wallet, ScrollText, FileSpreadsheet, ReceiptText, Landmark, HeartPulse, Layers, Beef, Map as MapIcon, LineChart, Cog, GitBranch,
   PieChart, TrendingUp, Calendar, MessageSquare, UserCircle2, LogOut, Check, ChevronsUpDown, Eye, Menu, X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -26,12 +26,14 @@ const NAV = [
     { href: "/inventory", label: "Inventory", icon: Tractor },
     { href: "/herd", label: "Herd", icon: Beef },
     { href: "/land", label: "Land", icon: MapIcon },
+    { href: "/assets", label: "Assets", icon: Cog },
     { href: "/liabilities", label: "Debt", icon: Wallet },
     { href: "/leases", label: "Leases", icon: ScrollText },
   ] },
   { group: "Plan", items: [
     { href: "/budgets", label: "Budgets", icon: PieChart },
     { href: "/forecast", label: "Forecast", icon: LineChart },
+    { href: "/scenarios", label: "Scenarios", icon: GitBranch },
     { href: "/planning", label: "Planning", icon: Calendar },
     { href: "/insights", label: "Insights", icon: TrendingUp },
   ] },
