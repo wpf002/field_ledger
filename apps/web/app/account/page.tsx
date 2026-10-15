@@ -19,7 +19,7 @@ export default async function AccountPage() {
   const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
   return (
     <>
-      <PageHeader title="My Account" subtitle="Profile, farm, and preferences." />
+      <PageHeader title="Account" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <Card className="p-6">
           <SectionHeading icon={<Building2 size={18} className="text-primary" />} title="Farm" />

@@ -19,7 +19,7 @@ const c = (d: number) => BigInt(Math.round(d * 100));
 const FREQ_N: Record<string, number> = { monthly: 12, quarterly: 4, semiannual: 2, annual: 1 };
 
 function Input({ name, label, value, step = "any" }: { name: string; label: string; value: number; step?: string }) {
-  return <label className="flex items-center justify-between gap-3 text-sm"><span className="text-muted">{label}</span><input name={name} type="number" step={step} defaultValue={value} className="input w-32 text-right" /></label>;
+  return <label className="block text-sm"><span className="mb-1 block text-xs uppercase tracking-wider text-muted">{label}</span><input name={name} type="number" step={step} defaultValue={value} className="input w-full text-right" /></label>;
 }
 
 export default async function AssetsPage({ searchParams }: { searchParams: SP }) {
@@ -114,7 +114,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: SP })
                 </div>
               ))}
             </div>
-            <form method="get" className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <form method="get" className="mt-5 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
               <input type="hidden" name="asset" value={pick.id} />
               <Input name="horizon" label="Years to Compare" value={n(searchParams.horizon, 5)} step="1" />
               <Input name="repairs" label="Repairs Now / Yr" value={n(searchParams.repairs, Number(repairs(pick, lastYear) || repairs(pick, "ttm")) / 100)} />
@@ -131,10 +131,10 @@ export default async function AssetsPage({ searchParams }: { searchParams: SP })
             </form>
           </Card>
         )}
-        <Card className="h-fit p-6">
+        <Card className="p-6">
           <h3 className="font-serif text-lg font-semibold text-ink">Can I Afford It?</h3>
           <p className="text-sm text-muted">Repayment margin (12 mo): <Money cents={snap.ratios.repaymentMarginCents} className="text-sm" /></p>
-          <form method="get" className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <form method="get" className="mt-5 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
             {pick && <input type="hidden" name="asset" value={pick.id} />}
             <Input name="buyPrice" label="Price" value={n(searchParams.buyPrice, 0)} />
             <Input name="buyDown" label="Down Payment" value={n(searchParams.buyDown, 0)} />
@@ -154,7 +154,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: SP })
               <div className={clsx("flex justify-between py-2 font-semibold", buy.affordable ? "text-positive" : "text-negative")}><dt>{buy.affordable ? "Affordable at Current Earnings" : "Not Covered by Current Earnings"}</dt><dd /></div>
             </dl>
           )}
-          <p className="mt-3 text-xs text-muted">Full effect on cash, debt, and ratios: <a className="underline" href={`/scenarios?eqPrice=${n(searchParams.buyPrice, 0)}&eqDown=${n(searchParams.buyDown, 0)}&eqRate=${n(searchParams.buyRate, 7.5)}&eqYears=${n(searchParams.buyYears, 5)}&eqLife=${n(searchParams.buyLife, 10)}&eqSalvage=${n(searchParams.buySalvage, 0)}`}>open in Scenarios</a></p>
+          <p className="mt-3 text-xs text-muted"><a className="underline" href={`/scenarios?eqPrice=${n(searchParams.buyPrice, 0)}&eqDown=${n(searchParams.buyDown, 0)}&eqRate=${n(searchParams.buyRate, 7.5)}&eqYears=${n(searchParams.buyYears, 5)}&eqLife=${n(searchParams.buyLife, 10)}&eqSalvage=${n(searchParams.buySalvage, 0)}`}>Open in Scenarios</a></p>
         </Card>
       </div>
       <p className="mt-3 text-xs text-muted">{num(assets.length - active.length)} disposed asset{assets.length - active.length === 1 ? "" : "s"} not shown</p>

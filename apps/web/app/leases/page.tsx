@@ -24,18 +24,17 @@ export default async function LeasesPage() {
   return (
     <>
       <PageHeader
-        title="Lease Agreements"
-        subtitle="Manage leased land and property agreements."
+        title="Leases"
         action={canEdit ? <AddLeaseButton farmId={farmId} /> : undefined}
       />
 
+      {leases.length === 0 ? (
+        <EmptyState icon={<LandPlot size={22} />} title="No Leases" />
+      ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <StatCard label="Total Leased Acreage" value={<span>{totalAcres.toLocaleString()} <span className="text-2xl font-normal">ac</span></span>} sub={`Across ${leases.length} agreements`} variant="brown" />
-        <StatCard label="Total Annual Rent" value={<Money cents={totalAnnualRent} />} sub="Base cash rent costs" />
+        <StatCard label="Total Annual Rent" value={<Money cents={totalAnnualRent} />} sub="Base cash rent" />
       </div>
-
-      {leases.length === 0 && (
-        <div className="mt-6"><EmptyState icon={<LandPlot size={22} />} title="No leases yet" hint="Add cash-rent or crop-share agreements to track acreage, terms, and rent obligations." action={canEdit ? <AddLeaseButton farmId={farmId} /> : undefined} /></div>
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">

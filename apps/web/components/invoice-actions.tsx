@@ -23,8 +23,8 @@ export function InvoiceActions({ farmId, id, number, status }: { farmId: string;
   }
 
   return (
-    <div className="mt-3 flex items-center gap-2">
-      <Link href={`/revenue/invoices/${id}`} className="inline-flex items-center gap-1.5 rounded-btn border border-border px-3 py-1.5 text-xs text-ink hover:bg-tag/40"><FileText size={13} /> View / PDF</Link>
+    <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+      <Link href={`/revenue/invoices/${id}`} className="inline-flex items-center gap-1.5 rounded-btn border border-border px-3 py-1.5 text-xs text-ink hover:bg-tag/40"><FileText size={13} /> View</Link>
       {!paid && (
         <button onClick={() => act("send")} disabled={!!busy} className="inline-flex items-center gap-1.5 rounded-btn border border-border px-3 py-1.5 text-xs text-ink hover:bg-tag/40 disabled:opacity-50"><Send size={13} /> {busy === "send" ? "Sending…" : "Send"}</button>
       )}

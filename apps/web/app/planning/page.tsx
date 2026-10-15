@@ -18,7 +18,6 @@ export default async function PlanningPage() {
     <>
       <PageHeader
         title="Production Planning"
-        subtitle="Manage livestock and crop production cycles."
         action={<NewPlanButton farmId={farmId} />}
       />
       <PlanningView plans={lite} />

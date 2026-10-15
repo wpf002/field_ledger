@@ -89,7 +89,7 @@ export default async function Dashboard() {
 
       <Card className="mt-6 grid grid-cols-2 gap-x-4 gap-y-4 p-5 sm:grid-cols-3 xl:grid-cols-6">
         {([
-          ["Receivables", bs.arCents], ["Payables", bs.apCents + bs.creditCardsCents], ["Gross Profit YTD", isYtd.grossProfitCents],
+          ["Receivables", bs.arCents], ["Bills Owed", bs.apCents + bs.creditCardsCents], ["Gross Profit YTD", isYtd.grossProfitCents],
           ["EBITDA YTD", isYtd.ebitdaCents], ["Operating Profit YTD", isYtd.operatingProfitCents], ["Inventory", snap.inventoryValueCents],
         ] as const).map(([k, v]) => (
           <div key={k}>

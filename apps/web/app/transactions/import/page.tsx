@@ -8,7 +8,7 @@ export default async function ImportPage() {
   const farmId = await getDemoFarmId();
   return (
     <>
-      <PageHeader title="Import" subtitle="Bring in transactions from a bank or accounting export." />
+      <PageHeader title="Import" />
       <ImportFlow farmId={farmId} />
     </>
   );

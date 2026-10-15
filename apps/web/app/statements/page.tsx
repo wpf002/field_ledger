@@ -210,7 +210,8 @@ export default async function StatementsPage({ searchParams }: { searchParams: P
     body = (
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
         <Card className="p-6"><StatementTable head={[fmtMonthYear(at), fmtMonthYear(base)]} lines={balanceLines(a, b)} /></Card>
-        <Card className="h-fit p-6">
+        <div className="h-fit space-y-6 xl:sticky xl:top-6">
+        <Card className="p-6">
           <h3 className="font-serif text-lg font-semibold text-ink">Equity Rollforward</h3>
           <dl className="mt-4 space-y-2 text-sm">
             {([["Opening Equity", rf.opening], ["Net Farm Income", rf.nfi], ["Contributions", rf.contributions], ["Distributions", rf.distributions]] as const).map(([k, v]) => (
@@ -222,7 +223,7 @@ export default async function StatementsPage({ searchParams }: { searchParams: P
             {a.balanceCheckCents === 0n ? "Balanced" : <>Out of balance by <Money cents={a.balanceCheckCents} className="text-xs" /></>}
           </p>
         </Card>
-        <Card className="h-fit p-6 xl:col-start-2">
+        <Card className="p-6">
           <h3 className="font-serif text-lg font-semibold text-ink">Net Worth Split</h3>
           {(() => {
             const landEquity = a.landMarketCents - a.landLoansCents;
@@ -235,7 +236,7 @@ export default async function StatementsPage({ searchParams }: { searchParams: P
               ["Livestock & Inventory", a.breedingLivestockCents + a.marketLivestockCents + a.cropInventoryCents + a.feedCents + a.growingCropsCents + a.suppliesCents],
               ["Machinery, Vehicles & Buildings", a.machineryCents + a.vehiclesCents + a.buildingsCents],
               ["Cash & Receivables", a.cashCents + a.arCents + a.prepaidCents],
-              ["Non-Land Debt & Payables", -(a.totalLiabilitiesCents - a.landLoansCents)],
+              ["Non-Land Debt & Bills", -(a.totalLiabilitiesCents - a.landLoansCents)],
             ];
             return (
               <dl className="mt-4 space-y-2 text-sm">
@@ -248,6 +249,7 @@ export default async function StatementsPage({ searchParams }: { searchParams: P
             );
           })()}
         </Card>
+        </div>
       </div>
     );
   } else {

@@ -8,7 +8,7 @@ export default async function ReconcilePage() {
   const farmId = await getDemoFarmId();
   return (
     <>
-      <PageHeader title="Reconcile" subtitle="Match a bank statement against your ledger." />
+      <PageHeader title="Reconcile" />
       <ReconcileFlow farmId={farmId} />
     </>
   );

@@ -11,7 +11,7 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 const KIND_COLOR: Record<string, string> = {
-  planting: "bg-primary", calving: "bg-brown", harvest: "bg-rust", breeding: "bg-[#3B6087]", other: "bg-muted",
+  planting: "bg-primary", calving: "bg-brown", harvest: "bg-rust", breeding: "bg-gold", other: "bg-muted",
 };
 const utcDay = (iso: string) => { const d = new Date(iso); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
 

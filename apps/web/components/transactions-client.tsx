@@ -7,7 +7,9 @@ import { PrimaryButton } from "@/components/ui/button";
 import Link from "next/link";
 import { toCents } from "@fl/core";
 import { fmtDate } from "@/lib/format";
-import { Plus, Search, Pencil, Trash2, X, Upload, Link2, CheckCircle2 } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Upload, Link2, CheckCircle2 } from "lucide-react";
+import { Toolbar, Pagination } from "@/components/ui/list-controls";
+import { PAGE_SIZE } from "@/lib/paging";
 
 export type Account = { id: string; code: string; label: string; kind: "INCOME" | "EXPENSE" };
 export type Txn = {
@@ -30,14 +32,30 @@ const titleCase = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 export function TransactionsClient({ farmId, initial, accounts, canWrite = true }: { farmId: string; initial: Txn[]; accounts: Account[]; canWrite?: boolean }) {
   const [rows, setRows] = useState<Txn[]>(initial);
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(1);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Txn | null>(null);
 
+  const filters = useMemo(() => {
+    const years = [...new Set(rows.map((t) => t.date.slice(0, 4)))].sort().reverse();
+    const cats = [...new Set(rows.map((t) => t.account.label))].sort();
+    return [
+      { param: "type", label: "All Types", options: [{ value: "INCOME", label: "Income" }, { value: "EXPENSE", label: "Expense" }] },
+      { param: "category", label: "All Categories", options: cats.map((c) => ({ value: c, label: c })) },
+      { param: "year", label: "All Years", options: years.map((y) => ({ value: y, label: y })) },
+    ];
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((t) => t.description.toLowerCase().includes(q) || t.account.label.toLowerCase().includes(q));
-  }, [rows, query]);
+    return rows.filter((t) =>
+      (!q || t.description.toLowerCase().includes(q) || t.account.label.toLowerCase().includes(q) || (t.relatedInventory?.name ?? t.relatedLabel ?? "").toLowerCase().includes(q)) &&
+      (!filter.type || t.account.kind === filter.type) &&
+      (!filter.category || t.account.label === filter.category) &&
+      (!filter.year || t.date.startsWith(filter.year)));
+  }, [rows, query, filter]);
+  const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   async function refresh() {
     const res = await fetch(`${API}/farms/${farmId}/transactions`, { cache: "no-store" });
@@ -54,10 +72,7 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
   return (
     <>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-serif text-3xl font-bold text-primary sm:text-4xl">Transactions</h2>
-          <p className="mt-1 text-muted">Track your farm&rsquo;s income and expenses.</p>
-        </div>
+        <h2 className="font-serif text-3xl font-bold text-primary sm:text-4xl">Transactions</h2>
         {canWrite ? (
           <div className="flex flex-wrap items-center gap-2">
             <Link href="/transactions/import" className="inline-flex items-center gap-2 rounded-btn border border-border px-4 py-2.5 text-sm text-ink hover:bg-tag/40"><Upload size={15} /> Import</Link>
@@ -70,10 +85,8 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
       </div>
 
       <Card className="overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-border px-5 py-3">
-          <Search size={18} className="text-muted" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-muted" placeholder="Search transactions..." />
-        </div>
+        <Toolbar search={query} onSearch={(v) => { setQuery(v); setPage(1); }} placeholder="Search Transactions" filters={filters} values={filter}
+          onFilter={(p, v) => { setFilter((f) => ({ ...f, [p]: v })); setPage(1); }} />
         <div className="overflow-x-auto">
         <table className="w-full min-w-[680px] text-sm">
           <thead>
@@ -87,7 +100,7 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
             </tr>
           </thead>
           <tbody>
-            {filtered.map((t) => {
+            {visible.map((t) => {
               const related = t.relatedInventory?.name ?? t.relatedLabel;
               return (
                 <tr key={t.id} className="border-t border-border">
@@ -113,11 +126,12 @@ export function TransactionsClient({ farmId, initial, accounts, canWrite = true 
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-10 text-center text-muted">No transactions match your search.</td></tr>
+              <tr><td colSpan={6} className="px-5 py-10 text-center text-muted">No Matches</td></tr>
             )}
           </tbody>
         </table>
         </div>
+        <Pagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
       </Card>
 
       {(adding || editing) && (

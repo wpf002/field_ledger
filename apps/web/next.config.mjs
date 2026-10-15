@@ -2,6 +2,9 @@
 const nextConfig = {
   transpilePackages: ["@fl/core", "@fl/db"],
   reactStrictMode: true,
+  async redirects() {
+    return [{ source: "/payables", destination: "/bills", permanent: true }];
+  },
   // Same-origin proxy: the browser calls /api/* (carrying the httpOnly session
   // cookie automatically), Next forwards to the Fastify API. This removes the
   // JS-readable token + Bearer interceptor that the cross-origin setup needed.

@@ -19,9 +19,10 @@ const fmtP = (v: number | null) => (v == null || !Number.isFinite(v) ? "–" : `
 
 function Field({ name, label, value, step = "any", suffix }: { name: string; label: string; value: number | string; step?: string; suffix?: string }) {
   return (
-    <label className="flex items-center justify-between gap-3 text-sm">
+    <label className="grid grid-cols-[1fr_7rem_1rem] items-center gap-2 text-sm">
       <span className="text-muted">{label}</span>
-      <span className="flex items-center gap-1"><input name={name} type="number" step={step} defaultValue={value} className="input w-28 text-right" />{suffix && <span className="w-4 text-xs text-muted">{suffix}</span>}</span>
+      <input name={name} type="number" step={step} defaultValue={value} className="input w-full text-right" />
+      <span className="text-xs text-muted">{suffix}</span>
     </label>
   );
 }
@@ -65,15 +66,16 @@ export default async function ScenariosPage({ searchParams }: { searchParams: SP
       return { d: "–", good: true, zero: true };
     };
     body = (
-      <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
-        <form className="h-fit space-y-5 rounded-card bg-surface p-5 shadow-card" method="get">
+      <div className="space-y-6">
+        <form className="rounded-card bg-surface p-5 shadow-card" method="get">
           <input type="hidden" name="view" value="whatif" />
+          <div className="grid gap-6 lg:grid-cols-3 lg:divide-x lg:divide-border">
           <div className="space-y-2"><h3 className="font-serif text-base font-semibold text-ink">Prices & Costs</h3>
             <Field name="price" label="Price Change" value={n(searchParams.price)} suffix="%" />
             <Field name="volume" label="Volume Change" value={n(searchParams.volume)} suffix="%" />
             <Field name="cost" label="Cost Change" value={n(searchParams.cost)} suffix="%" />
           </div>
-          <div className="space-y-2 border-t border-border pt-4"><h3 className="font-serif text-base font-semibold text-ink">Buy Equipment</h3>
+          <div className="space-y-2 lg:pl-6"><h3 className="font-serif text-base font-semibold text-ink">Buy Equipment</h3>
             <Field name="eqPrice" label="Price" value={n(searchParams.eqPrice)} suffix="$" step="1000" />
             <Field name="eqDown" label="Down Payment" value={n(searchParams.eqDown)} suffix="$" step="1000" />
             <Field name="eqRate" label="Rate" value={n(searchParams.eqRate, 7.5)} suffix="%" />
@@ -81,13 +83,14 @@ export default async function ScenariosPage({ searchParams }: { searchParams: SP
             <Field name="eqLife" label="Useful Life" value={n(searchParams.eqLife, 10)} step="1" />
             <Field name="eqSalvage" label="Salvage" value={n(searchParams.eqSalvage)} suffix="$" step="1000" />
           </div>
-          <div className="space-y-2 border-t border-border pt-4"><h3 className="font-serif text-base font-semibold text-ink">Hire & Lease</h3>
+          <div className="space-y-2 lg:pl-6"><h3 className="font-serif text-base font-semibold text-ink">Hire & Lease</h3>
             <Field name="hire" label="New Hire Wages" value={n(searchParams.hire)} suffix="$" step="1000" />
             <Field name="leaseAcres" label="Lease Acres" value={n(searchParams.leaseAcres)} step="10" />
             <Field name="leaseRent" label="Rent per Acre" value={n(searchParams.leaseRent)} suffix="$" />
             <Field name="leaseMargin" label="Margin per Acre" value={n(searchParams.leaseMargin)} suffix="$" />
           </div>
-          <div className="flex gap-2"><button className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-deep">Run</button><a href="/scenarios" className="rounded-btn border border-border px-4 py-2 text-sm text-ink hover:bg-tag/40">Reset</a></div>
+          </div>
+          <div className="mt-5 flex justify-end gap-2 border-t border-border pt-4"><button className="rounded-btn bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-deep">Run</button><a href="/scenarios" className="rounded-btn border border-border px-4 py-2 text-sm text-ink hover:bg-tag/40">Reset</a></div>
         </form>
         <Table minWidth={560}>
           <thead><tr><Th>Measure</Th><Th right>Base Forecast</Th><Th right>With Changes</Th><Th right>Change</Th></tr></thead>

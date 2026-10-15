@@ -52,7 +52,6 @@ export default async function InventoryPage({ searchParams }: { searchParams: { 
     <>
       <PageHeader
         title="Inventory"
-        subtitle="Manage livestock, crops, equipment, and supplies."
         action={canEdit ? <AddInventoryButton farmId={farmId} /> : undefined}
       />
 

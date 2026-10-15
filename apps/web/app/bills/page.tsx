@@ -9,10 +9,12 @@ import { getStatementContext } from "@/lib/statements";
 import { fmtDate } from "@/lib/format";
 import { agingSummary, agingBucket, AGING_BUCKETS, sumCents } from "@fl/core";
 import { Receipt } from "lucide-react";
+import { UrlToolbar, UrlPagination } from "@/components/ui/list-controls";
+import { PAGE_SIZE } from "@/lib/paging";
 
 export const dynamic = "force-dynamic";
 
-export default async function PayablesPage({ searchParams }: { searchParams: { show?: string } }) {
+export default async function BillsPage({ searchParams }: { searchParams: { show?: string; q?: string; category?: string; vendor?: string; page?: string } }) {
   const farmId = await getDemoFarmId();
   const { asOf } = await getStatementContext(farmId);
   const showPaid = searchParams.show === "paid";
@@ -20,12 +22,18 @@ export default async function PayablesPage({ searchParams }: { searchParams: { s
   const open = bills.filter((b) => b.status !== "Paid");
   const balance = (b: (typeof bills)[number]) => b.amountCents - b.amountPaidCents;
   const aging = agingSummary(open.map((b) => ({ dueDate: b.dueDate, balanceCents: balance(b) })), asOf);
-  const listed = showPaid ? [...bills].filter((b) => b.status === "Paid").reverse().slice(0, 100) : open;
+  const q = (searchParams.q ?? "").trim().toLowerCase();
+  const matches = (showPaid ? [...bills].filter((b) => b.status === "Paid").reverse() : open).filter((b) =>
+    (!q || [b.vendor.name, b.number, b.category, b.description, b.enterprise?.name].some((x) => x?.toLowerCase().includes(q))) &&
+    (!searchParams.category || b.category === searchParams.category) && (!searchParams.vendor || b.vendor.name === searchParams.vendor));
+  const page = Math.min(Math.max(1, Number(searchParams.page) || 1), Math.max(1, Math.ceil(matches.length / PAGE_SIZE)));
+  const listed = matches.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const opts = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].sort().map((x) => ({ value: x, label: x }));
   const daysPast = (d: Date) => Math.max(0, Math.floor((asOf.getTime() - d.getTime()) / 86_400_000));
 
   return (
     <>
-      <PageHeader title="Payables" />
+      <PageHeader title="Bills" />
       {bills.length === 0 ? (
         <EmptyState icon={<Receipt size={22} />} title="No Bills" />
       ) : (
@@ -45,10 +53,15 @@ export default async function PayablesPage({ searchParams }: { searchParams: { s
           </Card>
 
           <div className="mt-6 mb-4">
-            <LinkTabs value={showPaid ? "paid" : "open"} options={[{ value: "open", label: "Open", href: "/payables" }, { value: "paid", label: "Paid", href: "/payables?show=paid" }]} />
+            <LinkTabs value={showPaid ? "paid" : "open"} options={[{ value: "open", label: "Open", href: "/bills" }, { value: "paid", label: "Paid", href: "/bills?show=paid" }]} />
           </div>
 
-          <Card className="overflow-x-auto p-2 sm:p-4">
+          <Card className="overflow-hidden">
+            <UrlToolbar placeholder="Search Bills" filters={[
+              { param: "category", label: "All Categories", options: opts(bills.map((b) => b.category)) },
+              { param: "vendor", label: "All Vendors", options: opts(bills.map((b) => b.vendor.name)) },
+            ]} />
+            <div className="overflow-x-auto px-2 sm:px-4">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wider text-muted">
@@ -71,9 +84,11 @@ export default async function PayablesPage({ searchParams }: { searchParams: { s
                     <td className="whitespace-nowrap px-3 py-2.5 text-right"><Money cents={showPaid ? b.amountCents : balance(b)} /></td>
                   </tr>
                 ))}
-                {listed.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-muted">No Open Bills</td></tr>}
+                {listed.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-muted">No Matches</td></tr>}
               </tbody>
             </table>
+            </div>
+            <UrlPagination page={page} pageSize={PAGE_SIZE} total={matches.length} />
           </Card>
         </>
       )}

@@ -16,7 +16,7 @@ const NAV = [
   { group: "Books", items: [
     { href: "/transactions", label: "Transactions", icon: Receipt },
     { href: "/revenue", label: "Revenue", icon: DollarSign },
-    { href: "/payables", label: "Payables", icon: ReceiptText },
+    { href: "/bills", label: "Bills", icon: ReceiptText },
     { href: "/statements", label: "Statements", icon: FileSpreadsheet },
     { href: "/health", label: "Health", icon: HeartPulse },
     { href: "/reports", label: "Tax & Reports", icon: Landmark },
@@ -38,7 +38,7 @@ const NAV = [
     { href: "/insights", label: "Insights", icon: TrendingUp },
   ] },
   { group: null, items: [
-    { href: "/assistant", label: "AI Assistant", icon: MessageSquare },
+    { href: "/assistant", label: "Assistant", icon: MessageSquare },
     { href: "/integrations", label: "Integrations", icon: Plug },
   ] },
 ];
@@ -80,29 +80,29 @@ export function SidebarNav({ user, role, farms, currentFarmId }: { user: { name:
       "fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:self-start lg:z-auto lg:translate-x-0",
       mobileOpen ? "translate-x-0" : "-translate-x-full",
     )}>
-      <div className="flex items-start justify-between px-6 py-6 border-b border-border">
-        <div>
+      <div className="px-6 py-6 border-b border-border">
+        <div className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-2"><BrandMark size={26} /><h1 className="font-serif text-2xl font-bold text-primary">Acreflow</h1></span>
+          <div className="flex items-center gap-2">
+            <span className="hidden lg:block"><AlertsBell /></span>
+            <button onClick={() => setMobileOpen(false)} aria-label="Close menu" className="lg:hidden text-muted hover:text-ink"><X size={20} /></button>
+          </div>
+        </div>
           {/* Farm switcher */}
           <div className="relative mt-1">
-            <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink">
-              {current?.name ?? "Farm"} {farms.length > 1 && <ChevronsUpDown size={13} />}
+            <button onClick={() => setOpen((o) => !o)} title={current?.name} className="flex max-w-full items-center gap-1.5 text-sm text-muted hover:text-ink">
+              <span className="truncate whitespace-nowrap">{current?.name ?? "Farm"}</span> {farms.length > 1 && <ChevronsUpDown size={13} className="shrink-0" />}
             </button>
             {open && farms.length > 1 && (
-              <div className="absolute z-20 mt-1 w-56 rounded-btn border border-border bg-surface p-1 shadow-card">
+              <div className="absolute z-20 mt-1 w-max min-w-56 rounded-btn border border-border bg-surface p-1 shadow-card">
                 {farms.map((f) => (
-                  <button key={f.id} onClick={() => pick(f.id)} className="flex w-full items-center justify-between rounded-btn px-3 py-2 text-left text-sm text-ink hover:bg-tag/40">
-                    {f.name} {f.id === currentFarmId && <Check size={14} className="text-primary" />}
+                  <button key={f.id} onClick={() => pick(f.id)} className="flex w-full items-center justify-between gap-4 whitespace-nowrap rounded-btn px-3 py-2 text-left text-sm text-ink hover:bg-tag/40">
+                    {f.name} {f.id === currentFarmId && <Check size={14} className="shrink-0 text-primary" />}
                   </button>
                 ))}
               </div>
             )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="hidden lg:block"><AlertsBell /></span>
-          <button onClick={() => setMobileOpen(false)} aria-label="Close menu" className="lg:hidden text-muted hover:text-ink"><X size={20} /></button>
-        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-3">

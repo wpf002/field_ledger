@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import clsx from "clsx";
-import { Sparkles, PencilLine, Camera, Send, Upload, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Sparkles, PencilLine, Camera, Send, Upload, CheckCircle2 } from "lucide-react";
 import { enqueue } from "@/lib/outbox";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
@@ -123,11 +123,6 @@ export function AssistantView({ farmId }: { farmId: string }) {
             </button>
           ))}
         </div>
-        {mode && (
-          <span className="inline-flex items-center gap-1.5 rounded-pill bg-mint px-3 py-1 text-xs text-primary">
-            <ShieldCheck size={13} /> Grounded in your ledger · {mode === "claude" ? "Claude" : "rule-based"}
-          </span>
-        )}
       </div>
 
       {tab === "chat" && (
@@ -135,8 +130,7 @@ export function AssistantView({ farmId }: { farmId: string }) {
           {messages.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center text-center">
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-mint text-primary"><Sparkles size={22} /></span>
-              <h3 className="mt-4 font-serif text-2xl font-semibold text-ink">Welcome to your AI Ranch Hand</h3>
-              <p className="mt-1 max-w-md text-sm text-muted">Ask about your operation — every figure I give comes straight from your ledger.</p>
+              <h3 className="mt-4 font-serif text-2xl font-semibold text-ink">Ask About Your Farm</h3>
               <div className="mt-6 w-full max-w-xl space-y-2">
                 {SUGGESTIONS.map((s) => <button key={s} onClick={() => ask(s)} className="w-full rounded-btn border border-border px-4 py-3 text-left text-sm text-ink hover:bg-tag/30">{s}</button>)}
               </div>
@@ -152,7 +146,7 @@ export function AssistantView({ farmId }: { farmId: string }) {
             </div>
           )}
           <form onSubmit={(e) => { e.preventDefault(); ask(input); }} className="mt-6 flex items-center gap-2 rounded-btn border border-border px-4 py-2">
-            <input value={input} onChange={(e) => setInput(e.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-muted" placeholder="Ask about your farm operations..." />
+            <input value={input} onChange={(e) => setInput(e.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-muted" placeholder="Ask a question" />
             <button type="submit" disabled={chatBusy} className="rounded-btn bg-primary p-2 text-white hover:bg-primary-deep disabled:opacity-50"><Send size={15} /></button>
           </form>
         </Card>
@@ -175,7 +169,7 @@ export function AssistantView({ farmId }: { farmId: string }) {
       {tab === "receipt" && (
         <Card className="p-6">
           <h3 className="font-serif text-xl font-semibold text-ink">Receipt Capture</h3>
-          <p className="mt-1 text-sm text-muted">Upload a receipt photo. {mode === "claude" ? "I'll parse it into a draft for your review." : "I'll create a draft for you to fill in (vision auto-fill needs an Anthropic key)."}</p>
+          <p className="mt-1 text-sm text-muted">Upload a receipt photo.</p>
           <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-card border-2 border-dashed border-border py-12 text-center hover:bg-tag/20">
             <Upload size={26} className="text-muted" />
             <span className="text-sm text-muted">{busy ? "Reading receipt…" : "Click to upload a receipt image"}</span>

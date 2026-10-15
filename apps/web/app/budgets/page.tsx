@@ -38,7 +38,7 @@ export default async function BudgetsPage({ searchParams }: { searchParams: { ye
 
   return (
     <>
-      <PageHeader title="Budgets & Goals" subtitle="Plan your expenses and track financial targets." />
+      <PageHeader title="Budgets" />
 
       <div className="mb-8 grid grid-cols-2 gap-5 lg:grid-cols-4">
         <StatCard label="Monthly Budgets" value={<Money cents={monthlyTotal} />} sub={`${monthly.length} categories`} icon={<CalendarDays size={18} className="text-muted" />} />

@@ -156,7 +156,7 @@ export default async function ForecastPage({ searchParams }: { searchParams: { v
           </tbody>
         </Table>
         {seasons.length > 0 && (
-          <Card className="h-fit p-6">
+          <Card className="p-6">
             <h3 className="font-serif text-lg font-semibold text-ink">Crop Plan</h3>
             <dl className="mt-3 divide-y divide-border text-sm">
               {seasons.map((s) => {
