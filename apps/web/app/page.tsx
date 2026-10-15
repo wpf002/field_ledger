@@ -10,6 +10,8 @@ import { prisma } from "@fl/db";
 import { getDemoFarmId } from "@/lib/data";
 import { getBudgetStatuses } from "@/lib/budgets";
 import { getFinancialSnapshot, cashTrend } from "@/lib/snapshot";
+import { getForecastContext } from "@/lib/forecast";
+import { sumCents } from "@fl/core";
 import { BudgetBar } from "@/components/budget-bar";
 import { fmtDate, fmtMonthYear } from "@/lib/format";
 import { Wallet, Landmark, Scale, Sprout, DollarSign, Banknote, ArrowUpRight, ArrowDownRight, Sparkles, FileSpreadsheet } from "lucide-react";
@@ -30,6 +32,18 @@ export default async function Dashboard() {
   });
   const trend = cashTrend(snap.rows, snap.opening, asOf);
   const workingCapital = bs.totalCurrentAssetsCents - bs.totalCurrentLiabilitiesCents;
+  // Outlook from the base-case forecast.
+  const fc = await getForecastContext(farmId);
+  const weeks = fc.thirteen("base"), months = fc.twelve("base");
+  const yearEnd = months.find((m) => m.monthEnd.getUTCMonth() === 11) ?? months[months.length - 1]!;
+  const outlook = [
+    ["Cash in 90 Days", weeks.weeks[weeks.weeks.length - 1]!.endingCashCents],
+    [`Cash at ${yearEnd.monthEnd.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })}`, yearEnd.cash.endingCashCents],
+    ["Profit Next 12 Months", sumCents(months.map((m) => m.pnl.netIncomeOperatingCents))],
+    ["Peak Line", months.reduce((a, m) => (m.cash.lineBalanceCents > a ? m.cash.lineBalanceCents : a), 0n)],
+    ["Lowest Weekly Cash", weeks.minimum.cents],
+    ["Due in 90 Days", snap.obligations90Cents],
+  ] as const;
 
   return (
     <>
@@ -46,7 +60,7 @@ export default async function Dashboard() {
           <StatCard label="Revenue YTD" value={<Money cents={isYtd.revenueCents} />} sub={`${fmtMonthYear(asOf).split(" ")[0]} ${fmtK(isMonth.revenueCents)}`} icon={<DollarSign size={18} className="text-muted" />} />
           <StatCard label="Net Farm Income YTD" value={<Money cents={isYtd.netFarmIncomeCents} />} sub={`Gross margin ${fmtPct(isYtd.grossMarginPct)}`} icon={<Sprout size={18} className="text-muted" />} />
           <StatCard label="Debt" value={<Money cents={snap.interestBearingDebtCents} />} sub={snap.annualDebtServiceCents > 0n ? `Debt service ${fmtK(snap.annualDebtServiceCents)}/yr` : undefined} icon={<Landmark size={18} className="text-muted" />} />
-          <StatCard label="Inventory" value={<Money cents={snap.inventoryValueCents} />} sub="Crops, feed & livestock" icon={<Banknote size={18} className="text-muted" />} />
+          <StatCard label="Cash in 90 Days" value={<Money cents={weeks.weeks[weeks.weeks.length - 1]!.endingCashCents} />} sub={weeks.reserveBreach ? `Below reserve week of ${weeks.reserveBreach.start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}` : "Above reserve"} icon={<Banknote size={18} className={weeks.reserveBreach ? "text-rust" : "text-muted"} />} />
         </div>
 
         {/* Health score fills the height of the stat block. */}
@@ -74,12 +88,19 @@ export default async function Dashboard() {
       <Card className="mt-6 grid grid-cols-2 gap-x-4 gap-y-4 p-5 sm:grid-cols-3 xl:grid-cols-6">
         {([
           ["Receivables", bs.arCents], ["Payables", bs.apCents + bs.creditCardsCents], ["Gross Profit YTD", isYtd.grossProfitCents],
-          ["EBITDA YTD", isYtd.ebitdaCents], ["Operating Profit YTD", isYtd.operatingProfitCents], ["Due in 90 Days", snap.obligations90Cents],
+          ["EBITDA YTD", isYtd.ebitdaCents], ["Operating Profit YTD", isYtd.operatingProfitCents], ["Inventory", snap.inventoryValueCents],
         ] as const).map(([k, v]) => (
           <div key={k}>
             <p className="text-xs uppercase tracking-wider text-muted">{k}</p>
             <p className="mt-1 text-lg font-bold text-ink"><Money cents={v} /></p>
           </div>
+        ))}
+        <div className="col-span-full border-t border-border" />
+        {outlook.map(([k, v]) => (
+          <Link key={k} href="/forecast" className="group">
+            <p className="text-xs uppercase tracking-wider text-muted group-hover:text-ink">{k}</p>
+            <p className={`mt-1 text-lg font-bold ${v < fc.reserveCents && k.startsWith("Cash") ? "text-rust" : "text-ink"}`}><Money cents={v} /></p>
+          </Link>
         ))}
       </Card>
 

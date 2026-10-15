@@ -10,12 +10,13 @@ export async function loadEnterpriseInputs(prisma: PrismaClient, farmId: string,
     prisma.enterpriseUnitCount.findMany({ where: { farmId } }),
   ]);
   const parentOf = new Map(enterprises.map((e) => [e.id, e.parentId]));
-  const cropSeasons: (CropSeasonRec & { dataType: string | null })[] = seasons.map((s) => {
+  const cropSeasons: (CropSeasonRec & { dataType: string | null; expectedYield: number | null; expectedPrice: number | null; planned: boolean })[] = seasons.map((s) => {
     const extra = (s.extra ?? {}) as Record<string, unknown>;
     return {
       id: s.id, enterpriseId: s.enterpriseId, parentEnterpriseId: s.enterpriseId ? parentOf.get(s.enterpriseId) ?? null : null, crop: s.crop, year: s.year,
       acres: Number(s.acres), actualYield: s.actualYield == null ? null : Number(s.actualYield), actualAvgPrice: s.actualAvgPrice == null ? null : Number(s.actualAvgPrice),
-      yieldUnit: s.yieldUnit, qtyStoredEnd: typeof extra.qty_stored_end === "number" ? extra.qty_stored_end : null, dataType: s.dataType,
+      yieldUnit: s.yieldUnit, expectedYield: s.expectedYield == null ? null : Number(s.expectedYield), expectedPrice: s.expectedPrice == null ? null : Number(s.expectedPrice),
+      planned: s.dataType != null && s.dataType !== "Actual" && !/^Actual/.test(s.dataType), qtyStoredEnd: typeof extra.qty_stored_end === "number" ? extra.qty_stored_end : null, dataType: s.dataType,
     };
   });
   // Annual depreciation by enterprise; the in-progress year is annualized from the months booked.

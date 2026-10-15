@@ -124,6 +124,12 @@ the workbook to the cent.
 **Acceptance:** line items sourced from invoices, bills, and loan schedules match
 `Cash_13_Week_Items` exactly; base-case totals land within 5% of `Forecast_12M`.
 
+**Result:** known items match exactly on all four farms. The 5% target was not met:
+base-case revenue vs the workbook is BRN -5.7%, RCK +1.9%, SAM +7.9%, LAN -16.3%.
+The workbook's base case embeds price, yield, and rainfall assumptions (e.g. LAN's
+return to normal rain after a drought year); the app takes those as editable
+scenario drivers instead of hard-coding them. `verify:testfarms` prints the gaps.
+
 ## Phase 15 — Decisions (spec §13, §18–§20, §27, §28)
 
 **Deliverables**

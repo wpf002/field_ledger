@@ -77,6 +77,8 @@ model Farm {
   HerdFlowMonth         HerdFlowMonth[]
   LandValuation         LandValuation[]
   EnterpriseUnitCount   EnterpriseUnitCount[]
+  ForecastSetting       ForecastSetting?
+  ForecastRun           ForecastRun[]
 }
 
 enum Role {
@@ -928,4 +930,26 @@ model EnterpriseUnitCount {
   count        Int
 
   @@unique([farmId, enterpriseId, year])
+}
+
+/// Forecast settings per farm: cash reserve target and scenario drivers.
+model ForecastSetting {
+  id           String @id @default(uuid())
+  farm         Farm   @relation(fields: [farmId], references: [id])
+  farmId       String @unique
+  reserveCents BigInt @default(2500000)
+  scenarios    Json? // { base: Drivers, optimistic: Drivers, downside: Drivers }
+}
+
+/// A saved forecast, kept so forecast-vs-actual can grade it as months close.
+model ForecastRun {
+  id        String   @id @default(uuid())
+  farm      Farm     @relation(fields: [farmId], references: [id])
+  farmId    String
+  scenario  String
+  asOf      DateTime
+  months    Json // [{ monthEnd, revenueCents, costsCents, netCents, endingCashCents }]
+  createdAt DateTime @default(now())
+
+  @@index([farmId, asOf])
 }

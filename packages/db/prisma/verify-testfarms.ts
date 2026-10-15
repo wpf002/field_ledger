@@ -1,7 +1,7 @@
 import "./load-env.js"; // must be first — loads root .env before Prisma client
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { balanceSheetAt, cashFlowReport, incomeStatement, financialRatios, ratioInputsFor, periodFor, enterpriseStatements, cropEconomics, headEconomics, type BalanceSheet, type IncomeStatement, type Ratios } from "@fl/core";
+import { balanceSheetAt, cashFlowReport, incomeStatement, financialRatios, ratioInputsFor, periodFor, enterpriseStatements, cropEconomics, headEconomics, openItemFlows, scheduledDebtFlows, twelveMonthForecast, DEFAULT_SCENARIOS, type BalanceSheet, type IncomeStatement, type Ratios } from "@fl/core";
 import { loadEnterpriseInputs } from "../src/enterprise-inputs.js";
 import { prisma } from "../src/index.js";
 import { loadStatementInputs } from "../src/statement-inputs.js";
@@ -191,6 +191,31 @@ async function verifyFarm(file: string): Promise<Result[]> {
   }
   results.push(enRes);
 
+  // 13-week forecast: open invoice/bill and loan-schedule lines must match exactly.
+  const fcRes: Result = { check: "13-week known items", compared: 0, failures: [] };
+  const end13 = new Date(cut.getTime() + 91 * 86_400_000);
+  const key = (d: Date, c: bigint) => `${d.toISOString().slice(0, 10)} ${c}`;
+  const mine = [...openItemFlows(inputs.rows, cut, end13), ...scheduledDebtFlows(inputs.loans, cut, end13)].map((i) => key(i.date, i.cents)).sort();
+  const theirs = (tables.Cash_13_Week_Items ?? []).filter((r) => String(r.source).startsWith("Open") || r.source === "Loan schedule").map((r) => key(toDate(r.expected_date)!, toCents(r.amount))).sort();
+  fcRes.compared += Math.max(mine.length, theirs.length);
+  const a = new Set(mine), b = new Set(theirs);
+  for (const x of theirs) if (!a.has(x)) fcRes.failures.push(`workbook item missing: ${x}`);
+  for (const x of mine) if (!b.has(x)) fcRes.failures.push(`extra item: ${x}`);
+  if (mine.length !== theirs.length) fcRes.failures.push(`count ${mine.length} vs ${theirs.length}`);
+  results.push(fcRes);
+
+  // 12-month base case vs the workbook's base case (reported, not graded: the workbook's
+  // base embeds price/yield assumptions the app takes as editable drivers).
+  const line = await prisma.liability.findFirst({ where: { farmId: farm.id, type: "OPERATING_LINE" } });
+  const bsAt = balanceSheetAt(inputs, cut);
+  const fc = twelveMonthForecast({ ...inputs, asOf: cut, cashCents: bsAt.cashCents, reserveCents: 0n, drivers: DEFAULT_SCENARIOS.base.drivers,
+    line: line ? { limitCents: line.limitCents ?? line.originalCents, ratePct: Number(line.ratePct), balanceCents: bsAt.operatingLineCents } : null });
+  const base = (tables.Forecast_12M ?? []).filter((r) => r.scenario === "Base");
+  const tot = (k: string) => base.reduce((s, r) => s + toCents(r[k]), 0n);
+  const sumF = (k: "revenueCents" | "copCents" | "overheadCents" | "netIncomeOperatingCents") => fc.reduce((s, m) => s + m.pnl[k], 0n);
+  const pctOff = (x: bigint, y: bigint) => (y === 0n ? "n/a" : `${((Number(x - y) / Math.abs(Number(y))) * 100).toFixed(1)}%`);
+  forecastNotes.push(`${bizId}: revenue ${pctOff(sumF("revenueCents"), tot("revenue"))}, production costs ${pctOff(sumF("copCents"), tot("cost_of_production"))}, overhead ${pctOff(sumF("overheadCents"), tot("overhead"))} vs workbook base`);
+
   // Sub-ledgers at the cutoff.
   const subRes: Result = { check: "AR, debt, herd flow", compared: 0, failures: [] };
   const cutoff = inputs.cutoff!;
@@ -237,6 +262,7 @@ async function verifyFarm(file: string): Promise<Result[]> {
   return results;
 }
 
+const forecastNotes: string[] = [];
 const cutoffOf = (d: Date | null) => { if (!d) throw new Error("farm has no report cutoff"); return d; };
 
 async function main() {
@@ -249,6 +275,7 @@ async function main() {
       for (const msg of r.failures.slice(0, 5)) console.log(`        ${msg}`);
     }
   }
+  for (const n of forecastNotes) console.log(`INFO  ${n}`);
   if (failed) process.exitCode = 1;
 }
 
